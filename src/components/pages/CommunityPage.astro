@@ -1,0 +1,46 @@
+---
+---
+<section class="page" id="page-community">
+  <header class="page-header">
+    <div class="container">
+      <h1 class="page-header__title">Comunidad de lectores</h1>
+      <p class="page-header__subtitle">Conecta, comparte y crece con miles de lectores apasionados</p>
+    </div>
+  </header>
+  <div class="section">
+    <div class="container">
+      <div class="community-stats">
+        <div class="community-stat-card">
+          <div class="community-stat-card__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <div class="community-stat-card__number">12,847</div>
+          <div class="community-stat-card__label">Miembros activos</div>
+        </div>
+        <div class="community-stat-card">
+          <div class="community-stat-card__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+          <div class="community-stat-card__number">45,293</div>
+          <div class="community-stat-card__label">Libros leídos</div>
+        </div>
+        <div class="community-stat-card">
+          <div class="community-stat-card__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+          <div class="community-stat-card__number">8,541</div>
+          <div class="community-stat-card__label">Reseñas escritas</div>
+        </div>
+        <div class="community-stat-card">
+          <div class="community-stat-card__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></div>
+          <div class="community-stat-card__number">156</div>
+          <div class="community-stat-card__label">Retos completados</div>
+        </div>
+      </div>
+      <div class="community-tabs">
+        <button class="community-tab active" onclick="switchTab('members',this)">Miembros</button>
+        <button class="community-tab" onclick="switchTab('activity',this)">Actividad</button>
+        <button class="community-tab" onclick="switchTab('challenges',this)">Retos</button>
+        <button class="community-tab" onclick="switchTab('clubs',this)">Clubes</button>
+      </div>
+      <div class="tab-content active" id="tab-members"><div class="users-grid" id="usersGrid"></div></div>
+      <div class="tab-content" id="tab-activity"><div class="activity-feed" id="activityFeed"></div></div>
+      <div class="tab-content" id="tab-challenges"><div class="challenges-grid" id="challengesGrid"></div></div>
+      <div class="tab-content" id="tab-clubs"><div class="users-grid" id="clubsGrid"></div></div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,91 @@
+---
+---
+<section class="page" id="page-contact">
+  <header class="page-header">
+    <div class="container">
+      <h1 class="page-header__title">Contacto</h1>
+      <p class="page-header__subtitle">¿Tienes preguntas? Estamos aquí para ayudarte</p>
+    </div>
+  </header>
+  <div class="section">
+    <div class="container">
+      <div class="contact-layout">
+        <div class="contact-info">
+          <div class="contact-info-card">
+            <div class="contact-info-card__icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+            <div>
+              <h3 class="contact-info-card__title">Email</h3>
+              <p class="contact-info-card__value">hola@bookgram.es</p>
+            </div>
+          </div>
+          <div class="contact-info-card">
+            <div class="contact-info-card__icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div>
+              <h3 class="contact-info-card__title">Ubicación</h3>
+              <p class="contact-info-card__value">Madrid, España</p>
+            </div>
+          </div>
+          <div class="contact-info-card">
+            <div class="contact-info-card__icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div>
+              <h3 class="contact-info-card__title">Respuesta</h3>
+              <p class="contact-info-card__value">En menos de 24 horas</p>
+            </div>
+          </div>
+          <div class="faq-section">
+            <h3 class="faq-title">Preguntas frecuentes</h3>
+            <div class="faq-item" id="faq1">
+              <button class="faq-question" onclick="toggleFaq(this)">
+                ¿Es gratuito usar BookGram?
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="faq-answer">Sí, BookGram es completamente gratuito. Puedes crear tu cuenta, gestionar tu biblioteca y participar en la comunidad sin coste alguno.</div>
+            </div>
+            <div class="faq-item" id="faq2">
+              <button class="faq-question" onclick="toggleFaq(this)">
+                ¿Cómo añado libros a mi biblioteca?
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="faq-answer">Ve al Catálogo, encuentra el libro que quieres y pulsa el icono de marcador en la portada. Podrás elegir entre "Leyendo", "Leído", "Pendiente" o "Favorito".</div>
+            </div>
+            <div class="faq-item" id="faq3">
+              <button class="faq-question" onclick="toggleFaq(this)">
+                ¿Puedo exportar mi lista de libros?
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="faq-answer">Estamos trabajando en esta funcionalidad. Próximamente podrás exportar tu biblioteca en CSV o conectarla con Goodreads.</div>
+            </div>
+          </div>
+        </div>
+        <form class="contact-form" onsubmit="handleContact(event)">
+          <h2 class="contact-form__title">Envíanos un mensaje</h2>
+          <div class="contact-form__row">
+            <div class="form-group">
+              <label class="form-label">Nombre</label>
+              <input type="text" class="form-input" placeholder="Tu nombre" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-input" placeholder="tu@email.com" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Asunto</label>
+            <input type="text" class="form-input" placeholder="¿En qué podemos ayudarte?">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mensaje</label>
+            <textarea class="form-textarea" rows="5" placeholder="Cuéntanos tu consulta..." required></textarea>
+          </div>
+          <button type="submit" class="btn btn--primary btn--lg" style="width:100%">Enviar mensaje</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,46 @@
+---
+---
+<nav class="navbar" id="navbar" role="navigation" aria-label="Navegación principal">
+  <div class="container navbar__inner">
+    <a href="#" class="navbar__logo" onclick="navigateTo('home')" aria-label="BookGram - Inicio">
+      <div class="navbar__logo-mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </div>
+      BookGram
+    </a>
+    <ul class="navbar__menu" role="menubar">
+      <li><a class="navbar__link active" data-page="home"      onclick="navigateTo('home')"      role="menuitem" tabindex="0">Inicio</a></li>
+      <li><a class="navbar__link"        data-page="catalog"   onclick="navigateTo('catalog')"   role="menuitem" tabindex="0">Catálogo</a></li>
+      <li><a class="navbar__link"        data-page="library"   onclick="navigateTo('library')"   role="menuitem" tabindex="0">Mi Biblioteca</a></li>
+      <li><a class="navbar__link"        data-page="blog"      onclick="navigateTo('blog')"      role="menuitem" tabindex="0">Blog</a></li>
+      <li><a class="navbar__link"        data-page="community" onclick="navigateTo('community')" role="menuitem" tabindex="0">Comunidad</a></li>
+    </ul>
+    <div class="navbar__actions">
+      <button class="navbar__icon-btn" onclick="toggleTheme()" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">
+        <svg id="iconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg id="iconSun"  width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+      <button class="navbar__icon-btn" onclick="toggleSearch()" aria-label="Buscar libros">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      </button>
+      <div class="navbar__avatar" id="navAvatar" onclick="openProfile(0)" title="Ver mi perfil">
+        <span class="navbar__avatar-placeholder" id="navAvatarPlaceholder">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        <img src="" alt="Mi perfil" id="navAvatarImg" loading="lazy" width="36" height="36" style="display:none">
+      </div>
+      <button class="navbar__toggle" id="mobileToggle" onclick="toggleMobile()" aria-label="Menú móvil">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a class="mobile-menu__link active" data-page="home"      onclick="navigateTo('home')">Inicio</a>
+  <a class="mobile-menu__link"        data-page="catalog"   onclick="navigateTo('catalog')">Catálogo</a>
+  <a class="mobile-menu__link"        data-page="library"   onclick="navigateTo('library')">Mi Biblioteca</a>
+  <a class="mobile-menu__link"        data-page="blog"      onclick="navigateTo('blog')">Blog</a>
+  <a class="mobile-menu__link"        data-page="community" onclick="navigateTo('community')">Comunidad</a>
+  <a class="mobile-menu__link"        data-page="contact"   onclick="navigateTo('contact')">Contacto</a>
+</div>

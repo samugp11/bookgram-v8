@@ -1,0 +1,49 @@
+---
+---
+<section class="page" id="page-catalog">
+  <header class="page-header">
+    <div class="container">
+      <h1 class="page-header__title">Catálogo de libros</h1>
+      <p class="page-header__subtitle">Explora nuestra colección de más de 2,500 títulos</p>
+    </div>
+  </header>
+  <div class="section">
+    <div class="container">
+      <div class="catalog-filters">
+        <div class="catalog-filters__search">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="Buscar por título o autor..." id="catalogSearch" oninput="filterCatalog()" aria-label="Buscar en catálogo">
+        </div>
+        <select class="catalog-filters__select" id="catalogGenre" onchange="filterCatalog()">
+          <option value="">Todos los géneros</option>
+          <option value="ficcion">Ficción</option>
+          <option value="no-ficcion">No Ficción</option>
+          <option value="fantasia">Fantasía</option>
+          <option value="ciencia-ficcion">Ciencia Ficción</option>
+          <option value="romance">Romance</option>
+          <option value="misterio">Misterio</option>
+          <option value="historia">Historia</option>
+          <option value="ciencia">Ciencia</option>
+        </select>
+        <select class="catalog-filters__select" id="catalogSort" onchange="filterCatalog()">
+          <option value="popular">Más populares</option>
+          <option value="recent">Más recientes</option>
+          <option value="rating">Mejor valorados</option>
+          <option value="title">Título A–Z</option>
+        </select>
+      </div>
+      <div class="genre-tags" id="genreTags">
+        <button class="genre-tag active" onclick="selectGenre(this,'')">Todos</button>
+        <button class="genre-tag" onclick="selectGenre(this,'ficcion')">Ficción</button>
+        <button class="genre-tag" onclick="selectGenre(this,'fantasia')">Fantasía</button>
+        <button class="genre-tag" onclick="selectGenre(this,'ciencia-ficcion')">Sci-Fi</button>
+        <button class="genre-tag" onclick="selectGenre(this,'romance')">Romance</button>
+        <button class="genre-tag" onclick="selectGenre(this,'misterio')">Misterio</button>
+        <button class="genre-tag" onclick="selectGenre(this,'ciencia')">Ciencia</button>
+        <button class="genre-tag" onclick="selectGenre(this,'no-ficcion')">No Ficción</button>
+      </div>
+      <div id="catalogResultCount" class="catalog-result-count"></div>
+      <div class="catalog-grid" id="catalogGrid"></div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,40 @@
+---
+export interface Props {
+  title?: string;
+  description?: string;
+}
+const {
+  title = "BookGram - Tu Catálogo de Libros Online",
+  description = "Descubre, organiza y comparte tu biblioteca personal con nuestra comunidad de lectores."
+} = Astro.props;
+
+// Importar CSS directamente en el frontmatter → Astro lo bundlea en el HTML
+import '../styles/global.css';
+---
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content={description}>
+  <meta name="keywords" content="libros, catálogo, biblioteca, lectura, comunidad lectora, reseñas de libros">
+  <meta name="author" content="BookGram">
+  <meta property="og:title" content={title}>
+  <meta property="og:description" content={description}>
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://bookgram.com">
+  <meta property="og:image" content="https://images.unsplash.com/photo-1512820790803-83ca734da794?w=1200">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://bookgram.com">
+  <title>{title}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+</head>
+<body>
+  <slot />
+  <button class="scroll-top" id="scrollTop" onclick="scrollToTop()" aria-label="Volver arriba">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+  </button>
+</body>
+</html>

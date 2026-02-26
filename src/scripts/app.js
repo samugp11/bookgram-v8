@@ -1,0 +1,1135 @@
+import { API, PROFILE_DATA, loadFromStrapi } from '../data/api.js';
+
+/* ════════════════════════════════════════
+   STATE MANAGEMENT
+   ════════════════════════════════════════ */
+const State = {
+    get library()  { try { return JSON.parse(localStorage.getItem('bg_library') || '[]'); } catch { return []; } },
+    set library(v) { localStorage.setItem('bg_library', JSON.stringify(v)); },
+    get profile()  {
+        const saved = localStorage.getItem('bg_profile');
+        if (saved) return JSON.parse(saved);
+        return null; // null = no profile yet → show onboarding
+    },
+    set profile(v) { localStorage.setItem('bg_profile', JSON.stringify(v)); },
+    get following()  { try { return JSON.parse(localStorage.getItem('bg_following') || '[]'); } catch { return []; } },
+    set following(v) { localStorage.setItem('bg_following', JSON.stringify(v)); },
+    get theme()  { return localStorage.getItem('bg_theme') || 'light'; },
+    set theme(v) { localStorage.setItem('bg_theme', v); },
+    get profileSetup() { return !!localStorage.getItem('bg_profile'); }
+};
+
+// Library helpers
+function getLibrary()  { return State.library; }
+function addToLibrary(bookId, status = 'pending') {
+    const lib = getLibrary();
+    const exists = lib.find(b => b.id === bookId);
+    if (exists) exists.status = status;
+    else lib.push({ id: bookId, status, progress: 0, addedAt: Date.now() });
+    State.library = lib;
+    updateLibraryStats();
+    renderCatalog(getFilteredBooks());
+}
+function removeFromLibrary(bookId) {
+    State.library = getLibrary().filter(b => b.id !== bookId);
+    updateLibraryStats();
+    renderLibrary(currentLibraryTab);
+    renderCatalog(getFilteredBooks());
+}
+function isInLibrary(bookId) { return getLibrary().some(b => b.id === bookId); }
+function getBookStatus(bookId) { const b = getLibrary().find(b => b.id === bookId); return b ? b.status : null; }
+
+// Following helpers
+function isFollowing(userId) { return State.following.includes(userId); }
+function toggleFollow(userId) {
+    const follows = State.following;
+    const idx = follows.indexOf(userId);
+    if (idx > -1) follows.splice(idx, 1);
+    else follows.push(userId);
+    State.following = follows;
+    return idx === -1; // true = now following
+}
+
+let currentLibraryTab = 'all';
+
+function updateLibraryStats() {
+    const lib = getLibrary();
+    const read    = lib.filter(b => b.status === 'read').length;
+    const reading = lib.filter(b => b.status === 'reading').length;
+    const pending = lib.filter(b => b.status === 'pending').length;
+    const fav     = lib.filter(b => b.status === 'favorites').length;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('statRead', read); set('statReading', reading); set('statPending', pending); set('statFav', fav);
+
+    const profile = State.profile || {};
+    const total = lib.length;
+    const goal  = profile.goalBooks || 24;
+    const pct   = Math.min(100, Math.round((total / goal) * 100));
+    const fill  = document.getElementById('goalFill');
+    const num   = document.getElementById('goalNum');
+    const sub   = document.getElementById('goalSubtitle');
+    if (fill) fill.style.width = pct + '%';
+    if (num)  num.textContent  = pct + '%';
+    if (sub)  sub.textContent  = `Llevas ${total} de ${goal} libros este año. ${pct >= 100 ? '¡Meta alcanzada!' : '¡Sigue así!'}`;
+}
+
+/* ════════════════════════════════════════
+   ONBOARDING
+   ════════════════════════════════════════ */
+let obSelectedAvatar = '';
+let obSelectedGenres = [];
+let obCurrentStep = 1;
+
+function showOnboarding() {
+    const ob = document.getElementById('onboarding');
+    if (ob) ob.classList.remove('hidden');
+}
+function hideOnboarding() {
+    const ob = document.getElementById('onboarding');
+    if (ob) ob.classList.add('hidden');
+}
+
+function obNext(step) {
+    if (step === 1) {
+        const name = document.getElementById('obName')?.value.trim();
+        const username = document.getElementById('obUsername')?.value.trim();
+        if (!name) { showToast('Escribe tu nombre para continuar', true); return; }
+        if (!username) { showToast('Elige un nombre de usuario', true); return; }
+        obCurrentStep = 2;
+    } else if (step === 2) {
+        obCurrentStep = 3;
+    }
+    obSetStep(obCurrentStep);
+}
+
+function obBack(step) {
+    obCurrentStep = step - 1;
+    obSetStep(obCurrentStep);
+}
+
+function obSetStep(step) {
+    document.querySelectorAll('.onboarding__step').forEach(s => s.classList.remove('active'));
+    document.getElementById(`ob-step-${step}`)?.classList.add('active');
+    document.querySelectorAll('.onboarding__dot').forEach((d, i) => {
+        d.classList.toggle('active', i < step);
+    });
+}
+
+function obSelectAvatar(el, url) {
+    document.querySelectorAll('#obAvatarGrid .avatar-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    obSelectedAvatar = url;
+}
+
+function obToggleGenre(btn, genre) {
+    const idx = obSelectedGenres.indexOf(genre);
+    if (idx > -1) {
+        obSelectedGenres.splice(idx, 1);
+        btn.classList.remove('selected');
+    } else {
+        if (obSelectedGenres.length >= 3) { showToast('Máximo 3 géneros', true); return; }
+        obSelectedGenres.push(genre);
+        btn.classList.add('selected');
+    }
+}
+
+function obFinish() {
+    const name     = document.getElementById('obName')?.value.trim() || 'Lector';
+    const username = document.getElementById('obUsername')?.value.trim() || 'lector';
+    const goal     = parseInt(document.getElementById('obGoal')?.value) || 24;
+    const avatar   = obSelectedAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face';
+
+    const profile = {
+        id: 0,
+        name,
+        username: '@' + username.replace('@',''),
+        bio: '',
+        avatar,
+        level: 'Nuevo lector',
+        levelClass: 'badge--neutral',
+        booksRead: 0,
+        reviews: 0,
+        followers: 0,
+        following: 0,
+        booksThisYear: 0,
+        goalBooks: goal,
+        recentBooks: [],
+        badges: [],
+        genres: obSelectedGenres.map(g => ({ label: g, pct: 80 }))
+    };
+    State.profile = profile;
+
+    // Update navbar avatar
+    const navImg = document.getElementById('navAvatarImg');
+    const navPh  = document.getElementById('navAvatarPlaceholder');
+    if (navImg) { navImg.src = avatar; navImg.style.display = 'block'; }
+    if (navPh)  navPh.style.display = 'none';
+
+    hideOnboarding();
+    updateLibraryStats();
+    showToast(`Bienvenido, ${name}!`);
+}
+
+/* ════════════════════════════════════════
+   SPA ROUTER
+   ════════════════════════════════════════ */
+function navigateTo(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const target = document.getElementById('page-' + page);
+    if (target) target.classList.add('active');
+    document.querySelectorAll('.navbar__link').forEach(l => l.classList.toggle('active', l.dataset.page === page));
+    document.querySelectorAll('.mobile-menu__link').forEach(l => l.classList.toggle('active', l.dataset.page === page));
+    closeMobile();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    history.pushState({ page }, '', '#' + page);
+    const titles = { home:'BookGram', catalog:'Catálogo — BookGram', library:'Mi Biblioteca — BookGram', blog:'Blog — BookGram', community:'Comunidad — BookGram', contact:'Contacto — BookGram' };
+    document.title = titles[page] || 'BookGram';
+    if (page === 'library') { updateLibraryStats(); renderLibrary(currentLibraryTab); }
+}
+window.addEventListener('popstate', e => navigateTo(e.state?.page || 'home'));
+
+/* ════════════════════════════════════════
+   THEME
+   ════════════════════════════════════════ */
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const moon = document.getElementById('iconMoon');
+    const sun  = document.getElementById('iconSun');
+    if (moon) moon.style.display = theme === 'dark' ? 'none' : 'block';
+    if (sun)  sun.style.display  = theme === 'dark' ? 'block' : 'none';
+    const settingToggle = document.getElementById('settingDarkMode');
+    if (settingToggle) settingToggle.checked = theme === 'dark';
+}
+function toggleTheme() {
+    const next = State.theme === 'dark' ? 'light' : 'dark';
+    State.theme = next;
+    applyTheme(next);
+}
+function toggleThemeFromSettings(el) {
+    const next = el.checked ? 'dark' : 'light';
+    State.theme = next;
+    applyTheme(next);
+}
+
+/* ════════════════════════════════════════
+   STATUS ICONS (SVG instead of emoji)
+   ════════════════════════════════════════ */
+const STATUS_ICONS = {
+    read:      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>',
+    reading:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+    pending:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
+    favorites: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    none:      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
+};
+const STATUS_LABELS = { read:'Leído', reading:'Leyendo', pending:'Pendiente', favorites:'Favorito' };
+const STATUS_BADGE  = { read:'badge--sage', reading:'badge--cobalt', pending:'badge--amber', favorites:'badge--accent' };
+
+/* ════════════════════════════════════════
+   RENDER: TRENDING
+   ════════════════════════════════════════ */
+function renderTrendingBooks() {
+    const container = document.getElementById('trendingScroll');
+    if (!container) return;
+    container.innerHTML = API.books.slice(0, 8).map(book => `
+        <article class="book-card" onclick="openBookModal(${book.id})" aria-label="${book.title}">
+            <div class="book-card__cover">
+                <img src="${book.img}" alt="${book.title}" loading="lazy" width="220" height="310">
+                <div class="book-card__overlay"><button class="btn btn--primary btn--sm">Ver detalles</button></div>
+            </div>
+            <h3 class="book-card__title">${book.title}</h3>
+            <p class="book-card__author">${book.author}</p>
+            <div class="book-card__meta">
+                <span class="stars">★</span>
+                <span style="font-size:0.85rem;font-weight:600;color:var(--ink-3)">${book.rating}</span>
+                <span style="font-size:0.8rem;color:var(--ink-5)">· ${book.price}</span>
+            </div>
+        </article>`).join('');
+}
+
+/* ════════════════════════════════════════
+   RENDER: CATALOG
+   ════════════════════════════════════════ */
+function renderCatalog(books) {
+    const grid = document.getElementById('catalogGrid');
+    const count = document.getElementById('catalogResultCount');
+    if (!grid) return;
+    if (count) count.textContent = `${books.length} libro${books.length !== 1 ? 's' : ''}`;
+    if (!books.length) {
+        grid.innerHTML = '<p class="catalog-empty">No se encontraron libros con ese criterio.</p>';
+        return;
+    }
+    grid.innerHTML = books.map(book => {
+        const status     = getBookStatus(book.id);
+        const inLib      = !!status;
+        const iconSvg    = STATUS_ICONS[status || 'none'];
+        const activeClass = inLib ? 'active' : '';
+        return `
+        <article class="book-card-full" onclick="openBookModal(${book.id})">
+            <div class="book-card-full__cover">
+                <img src="${book.img}" alt="${book.title}" loading="lazy" width="200" height="280">
+                <span class="book-card-full__badge badge badge--accent">${book.badge}</span>
+                <button class="book-card-full__save ${activeClass}" onclick="event.stopPropagation();quickAddLibrary(${book.id},this)" aria-label="Guardar en biblioteca" title="${inLib ? STATUS_LABELS[status] : 'Añadir a biblioteca'}">${iconSvg}</button>
+            </div>
+            <div class="book-card-full__info">
+                <h3 class="book-card-full__title">${book.title}</h3>
+                <p class="book-card-full__author">${book.author}</p>
+                <div class="book-card-full__footer">
+                    <span class="book-card-full__price">${book.price}</span>
+                    <div class="stars" style="font-size:0.8rem">★ ${book.rating}</div>
+                </div>
+            </div>
+        </article>`;
+    }).join('');
+}
+
+/* ════════════════════════════════════════
+   RENDER: BLOG
+   ════════════════════════════════════════ */
+function renderBlog() {
+    const grid = document.getElementById('blogGrid');
+    if (!grid) return;
+    grid.innerHTML = API.blogPosts.map(post => `
+        <article class="blog-card" onclick="openBlogPost(${post.id})">
+            <div class="blog-card__img"><img src="${post.img}" alt="${post.title}" loading="lazy" width="600" height="400"></div>
+            <div class="blog-card__content">
+                <span class="blog-card__tag badge ${post.tagClass}">${post.tag}</span>
+                <h3 class="blog-card__title">${post.title}</h3>
+                <p class="blog-card__excerpt">${post.excerpt}</p>
+                <div class="blog-card__footer">
+                    <div class="blog-card__author">
+                        <div class="blog-card__author-avatar"><img src="${post.avatar}" alt="${post.author}" loading="lazy" width="32" height="32"></div>
+                        <span class="blog-card__author-name">${post.author}</span>
+                    </div>
+                    <span class="blog-card__read-time">${post.readTime} lectura</span>
+                </div>
+            </div>
+        </article>`).join('');
+}
+
+/* ════════════════════════════════════════
+   BLOG POST MODAL
+   ════════════════════════════════════════ */
+const BLOG_CONTENT = {
+    1: `<p>La fantasía es un género que ha dado algunas de las obras más memorables de la literatura universal. Desde los mundos épicos de Tolkien hasta las ciudades mágicas de Miéville, estos libros te transportarán a realidades donde todo es posible.</p>
+        <h3>1. El Señor de los Anillos — J.R.R. Tolkien</h3>
+        <p>La obra fundacional de la fantasía épica moderna. Un mundo construido con una profundidad lingüística y mitológica sin precedentes. Si no la has leído, empieza hoy.</p>
+        <h3>2. El nombre del viento — Patrick Rothfuss</h3>
+        <p>Kvothe es uno de los personajes más fascinantes de la fantasía contemporánea. La prosa de Rothfuss es musical, casi poética. Un libro que se devora.</p>
+        <h3>3. La forma del agua — Andrzej Sapkowski</h3>
+        <p>El universo de Geralt de Rivia es moralmente complejo, adulto y sorprendentemente humano. Mucho más rico que cualquier adaptación audiovisual.</p>
+        <h3>4. Mistborn — Brandon Sanderson</h3>
+        <p>El sistema de magia más coherente y original del género. Sanderson construye mundos con una lógica interna impecable. Perfecto para lectores que quieren entender las reglas.</p>
+        <h3>5. Canción de hielo y fuego — George R.R. Martin</h3>
+        <p>La fantasía que demostró que el género podía ser literatura seria. Personajes complejos, política brutal y ningún personaje completamente seguro.</p>
+        <p>Estos cinco son el punto de partida ideal. Una vez que los hayas leído, la lista se amplía casi infinitamente.</p>`,
+    2: `<p>Crear el hábito de la lectura diaria es más fácil de lo que parece. No necesitas horas libres ni una rutina perfecta. Solo necesitas consistencia y las estrategias correctas.</p>
+        <h3>El truco de los 10 minutos</h3>
+        <p>No te pongas metas de "leer 30 páginas al día". En su lugar, comprométete a leer solo 10 minutos. En la cama antes de dormir, en el metro, esperando el café. Los 10 minutos casi siempre se convierten en 30.</p>
+        <h3>El libro en papel gana</h3>
+        <p>Los estudios demuestran que retemos mejor lo que leemos en papel. Además, el libro físico no tiene notificaciones. Si solo puedes elegir uno, que sea papel.</p>
+        <h3>Elige bien el primer libro</h3>
+        <p>Si quieres retomar la lectura después de años, no empieces con Dostoievski. Empieza con algo que te enganche desde la primera página. La velocidad y el género importan menos que el disfrute.</p>
+        <h3>Apaga la pantalla 30 minutos antes</h3>
+        <p>Las pantallas activan el cerebro. El libro lo calma. Leer antes de dormir mejora la calidad del sueño y hace que la lectura se convierta en una recompensa, no en una obligación.</p>
+        <h3>Registra lo que lees</h3>
+        <p>Llevar un registro —aunque sea una simple lista— crea una sensación de progreso que alimenta el hábito. BookGram está diseñado exactamente para esto.</p>`,
+    3: `<p>Liu Cixin es el escritor de ciencia ficción más importante del siglo XXI. "El problema de los tres cuerpos" es la prueba de que la ciencia ficción dura, rigurosa y exigente puede ser también una narrativa apasionante.</p>
+        <h3>De qué trata</h3>
+        <p>La novela comienza durante la Revolución Cultural China y se expande hacia el contacto con una civilización extraterrestre que habita un sistema de tres soles —un sistema caótico e impredecible que ha moldeado una cultura desesperada y violenta.</p>
+        <h3>Lo que la hace extraordinaria</h3>
+        <p>Liu Cixin no simplifica la ciencia. El libro exige atención, pero recompensa cada página con ideas que literalmente cambian la forma en que ves el universo. El concepto del "bosque oscuro" —que desarrolla en el segundo libro— es una de las ideas más perturbadoras de la literatura reciente.</p>
+        <h3>Sus puntos débiles</h3>
+        <p>Los personajes son su punto más flojo. Liu es un ingeniero narrando ideas, no un psicólogo narrando personas. Si buscas profundidad emocional, mira a otro lado. Si buscas que tu cabeza explote con conceptos, es tu libro.</p>
+        <h3>Veredicto</h3>
+        <p>Imprescindible. La trilogía completa (El problema de los tres cuerpos, El bosque oscuro, El fin de la muerte) es una de las obras de ciencia ficción más ambiciosas jamás escritas. Léela.</p>`,
+    4: `<p>Los clubes de lectura online han experimentado un auge sin precedentes. La pandemia los normalizó, y la comunidad lectora los ha adoptado como una forma genuina de conectar con otros lectores sin importar la geografía.</p>
+        <h3>Cómo funciona un club de lectura online</h3>
+        <p>La mayoría opera con un libro al mes, lecturas semanales por capítulos, y debates en videollamada o en canales de texto. Algunos son síncronos —todos leen al mismo ritmo— y otros asíncronos, donde cada uno avanza a su paso.</p>
+        <h3>Dónde encontrarlos</h3>
+        <p>Discord alberga miles de clubes temáticos. Reddit tiene comunidades como r/bookclub con decenas de miles de participantes. Goodreads tiene grupos por género, idioma y ritmo de lectura. Y aquí en BookGram, estamos construyendo nuestra propia sección de clubes.</p>
+        <h3>Cómo crear el tuyo</h3>
+        <p>No necesitas muchos miembros para empezar. Con 4-5 personas comprometidas tienes suficiente. Define el género, la frecuencia y el canal de comunicación desde el principio. La consistencia es lo que distingue los clubes que duran de los que desaparecen al mes.</p>
+        <h3>El valor real</h3>
+        <p>Más allá del libro, los clubes de lectura crean contexto. Leer sabiendo que luego lo debatirás hace que leas diferente, más activamente, buscando argumentos y conexiones. Es la diferencia entre ver una película solo o verla con alguien con quien luego hablarás.</p>`,
+    5: `<p>El mercado editorial independiente ha cambiado radicalmente en la última década. Hoy, algunos de los libros más interesantes no vienen de las grandes editoriales sino de autores que han apostado por la autopublicación.</p>
+        <h3>Por qué vale la pena explorar</h3>
+        <p>Los autores independientes tienen una libertad creativa que las grandes editoriales raramente permiten. Sin presiones comerciales ni comités editoriales, pueden escribir exactamente lo que quieren. El resultado es a veces arriesgado, pero cuando funciona, es memorable.</p>
+        <h3>El problema del ruido</h3>
+        <p>El mercado indie tiene mucho ruido. Por cada libro brillante hay cien que no han pasado por un proceso editorial serio. La clave es encontrar comunidades y recomendadores de confianza que ya hayan filtrado por ti.</p>
+        <h3>Dónde descubrirlos</h3>
+        <p>Royal Road para fantasía y ciencia ficción. Wattpad para romance y ficción joven. Smashwords y Draft2Digital para todo tipo de géneros. Y cada vez más, autores construyendo su audiencia directamente en redes y plataformas como la nuestra.</p>
+        <h3>Algunos nombres a seguir</h3>
+        <p>Brandon Sanderson empezó siendo relativamente desconocido antes de ser uno de los autores más prolíficos del género. Andy Weir autopublicó "El marciano" antes de que lo fichara una editorial. El próximo gran nombre probablemente lo estás pasando por alto ahora mismo.</p>`,
+    6: `<p>La pregunta "¿ciencia ficción o fantasía?" es una de las más recurrentes entre los lectores que se acercan por primera vez a la especulativa. La respuesta corta: no tienes que elegir. La respuesta larga, más interesante.</p>
+        <h3>La diferencia real</h3>
+        <p>La ciencia ficción especula con lo posible —o lo que podría ser posible con tecnología y ciencia avanzadas. La fantasía especula con lo imposible, con lo que viola deliberadamente las leyes del mundo natural. Pero los límites son mucho más porosos de lo que parecen.</p>
+        <h3>¿Dónde está la línea?</h3>
+        <p>Dune es ciencia ficción con elementos casi mágicos. El Señor de los Anillos es fantasía con una lógica interna casi científica. Star Wars es fantasía con estética espacial. Annihilation es ciencia ficción que se lee como horror mítico.</p>
+        <h3>Lo que realmente importa</h3>
+        <p>El género es una etiqueta de librería, no una descripción del valor de una obra. Lo que hace grande un libro no es si la magia tiene explicación científica o no, sino si los personajes son reales, si las ideas importan, si la prosa vale la pena.</p>
+        <h3>Nuestra recomendación</h3>
+        <p>Lee las dos. Empieza con lo que te llama más. La ciencia ficción tiende a exigir más paciencia al principio; la fantasía suele enganchar antes. Pero una vez dentro de cualquiera de los dos géneros, el camino hacia el otro es mucho más corto de lo que imaginabas.</p>`,
+};
+
+function openBlogPost(id) {
+    const post = API.blogPosts.find(p => p.id === id);
+    if (!post) return;
+    const content = post.content || BLOG_CONTENT[id] || '<p>Contenido próximamente.</p>';
+    document.getElementById('blogModalBody').innerHTML = `
+        <div class="blog-modal__hero">
+            <img src="${post.img}" alt="${post.title}" loading="lazy">
+            <div class="blog-modal__hero-overlay"></div>
+        </div>
+        <div class="blog-modal__content">
+            <span class="badge ${post.tagClass}" style="margin-bottom:var(--sp-4);display:inline-flex">${post.tag}</span>
+            <h2 class="blog-modal__title" id="blogModalTitle">${post.title}</h2>
+            <div class="blog-modal__meta">
+                <div class="blog-card__author">
+                    <div class="blog-card__author-avatar"><img src="${post.avatar}" alt="${post.author}" loading="lazy" width="36" height="36"></div>
+                    <div>
+                        <div class="blog-modal__author-name">${post.author}</div>
+                        <div class="blog-modal__author-date">${post.date} · ${post.readTime} de lectura</div>
+                    </div>
+                </div>
+            </div>
+            <div class="blog-modal__body">${content}</div>
+            <div class="blog-modal__footer">
+                <button class="btn btn--outline btn--sm" onclick="closeBlogModal()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+                    Volver al blog
+                </button>
+                <button class="btn btn--primary btn--sm" onclick="showToast('Artículo guardado')">Guardar artículo</button>
+            </div>
+        </div>`;
+    document.getElementById('blogModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+function closeBlogModal() { document.getElementById('blogModal').classList.remove('show'); document.body.style.overflow = ''; }
+function closeBlogOnBackdrop(e) { if (e.target === e.currentTarget) closeBlogModal(); }
+
+/* ════════════════════════════════════════
+   RENDER: USERS (with live follow state)
+   ════════════════════════════════════════ */
+function renderUsers() {
+    const grid = document.getElementById('usersGrid');
+    if (!grid) return;
+    grid.innerHTML = API.users.map(user => {
+        const following = isFollowing(user.id);
+        const followerCount = user.followers + (following ? 1 : 0);
+        return `
+        <article class="user-card">
+            <div class="user-card__header">
+                <div class="user-card__avatar" onclick="openProfile(${user.id})"><img src="${user.avatar}" alt="${user.name}" loading="lazy" width="56" height="56"></div>
+                <div>
+                    <h3 class="user-card__name" onclick="openProfile(${user.id})">${user.name}</h3>
+                    <p class="user-card__username">${user.username}</p>
+                    <span class="user-card__level badge ${user.levelClass}">${user.level}</span>
+                </div>
+            </div>
+            <div class="user-card__stats">
+                <div class="user-card__stat"><div class="user-card__stat-num">${user.booksRead}</div><div class="user-card__stat-label">Libros</div></div>
+                <div class="user-card__stat"><div class="user-card__stat-num">${user.reviews}</div><div class="user-card__stat-label">Reseñas</div></div>
+                <div class="user-card__stat"><div class="user-card__stat-num" id="followerCount-${user.id}">${followerCount}</div><div class="user-card__stat-label">Seguidores</div></div>
+            </div>
+            <div class="user-card__books">
+                ${user.books.map(b => `<div class="user-card__book-thumb"><img src="${b}" alt="Libro" loading="lazy" width="44" height="62"></div>`).join('')}
+                <div class="user-card__book-more">+${user.booksRead - 3}</div>
+            </div>
+            <div class="user-card__footer">
+                <button class="btn btn--sm ${following ? 'btn--following' : 'btn--primary'}" style="flex:1"
+                    id="followBtn-${user.id}"
+                    onclick="handleFollow(${user.id}, this)">
+                    ${following ? 'Siguiendo' : 'Seguir'}
+                </button>
+                <button class="btn btn--outline btn--sm" onclick="openProfile(${user.id})">Perfil</button>
+            </div>
+        </article>`;
+    }).join('');
+}
+
+function handleFollow(userId, btn) {
+    const nowFollowing = toggleFollow(userId);
+    const user = API.users.find(u => u.id === userId);
+    const baseCount = user ? user.followers : 0;
+    // Update all follow buttons for this user across the page
+    document.querySelectorAll(`[id="followBtn-${userId}"]`).forEach(b => {
+        b.textContent = nowFollowing ? 'Siguiendo' : 'Seguir';
+        b.className = `btn btn--sm ${nowFollowing ? 'btn--following' : 'btn--primary'}`;
+        b.style.flex = '1';
+    });
+    // Update follower count
+    const countEl = document.getElementById(`followerCount-${userId}`);
+    if (countEl) countEl.textContent = baseCount + (nowFollowing ? 1 : 0);
+    showToast(nowFollowing ? `Siguiendo a ${user?.name || 'este usuario'}` : `Has dejado de seguir a ${user?.name || 'este usuario'}`);
+    // If profile modal open for this user, refresh follow button inside
+    const modalFollowBtn = document.getElementById(`profileFollowBtn-${userId}`);
+    if (modalFollowBtn) {
+        modalFollowBtn.textContent = nowFollowing ? 'Siguiendo' : 'Seguir';
+        modalFollowBtn.className = `btn btn--sm ${nowFollowing ? 'btn--following' : 'btn--primary'}`;
+    }
+}
+
+/* ════════════════════════════════════════
+   RENDER: ACTIVITY
+   ════════════════════════════════════════ */
+function renderActivity() {
+    const feed = document.getElementById('activityFeed');
+    if (!feed) return;
+    feed.innerHTML = API.activities.map(act => `
+        <div class="activity-item">
+            <div class="activity-item__avatar"><img src="${act.avatar}" alt="${act.user}" loading="lazy" width="44" height="44"></div>
+            <div class="activity-item__content">
+                <p class="activity-item__text"><strong>${act.user}</strong> ${act.action} <em>${act.book}</em> ${act.rating ? `<span class="stars" style="font-size:0.8rem">${act.rating}</span>` : ''}</p>
+                <p class="activity-item__time">${act.time}</p>
+                <div class="activity-item__book">
+                    <div class="activity-item__book-thumb"><img src="${act.bookImg}" alt="${act.book}" loading="lazy" width="32" height="44"></div>
+                    <div><div class="activity-item__book-title">${act.book}</div><div class="activity-item__book-author">${act.bookAuthor}</div></div>
+                </div>
+            </div>
+        </div>`).join('');
+}
+
+/* ════════════════════════════════════════
+   RENDER: CHALLENGES
+   ════════════════════════════════════════ */
+function renderChallenges() {
+    const grid = document.getElementById('challengesGrid');
+    if (!grid) return;
+    grid.innerHTML = API.challenges.map(ch => `
+        <article class="challenge-card">
+            <div class="challenge-card__header">
+                <h3 class="challenge-card__title">${ch.title}</h3>
+                <span class="badge ${ch.badgeClass}">${ch.badgeText}</span>
+            </div>
+            <p class="challenge-card__desc">${ch.desc}</p>
+            <div class="challenge-card__progress">
+                <div class="challenge-card__progress-bar">
+                    <div class="challenge-card__progress-fill" style="width:${ch.progress}%;background:var(--accent)"></div>
+                </div>
+                <div class="challenge-card__progress-text"><span>${ch.current}</span><span>${ch.goal}</span></div>
+            </div>
+            <div class="challenge-card__footer">
+                <div class="challenge-card__participants">
+                    ${ch.participants.map(p => `<div class="challenge-card__participant-avatar"><img src="${p}" alt="Participante" loading="lazy" width="28" height="28"></div>`).join('')}
+                    <span class="challenge-card__participant-count">${ch.participantCount}</span>
+                </div>
+                <button class="btn btn--primary btn--sm" onclick="showToast('Te has unido al reto: ${ch.title}')">Unirse</button>
+            </div>
+        </article>`).join('');
+}
+
+/* ════════════════════════════════════════
+   RENDER: CLUBS
+   ════════════════════════════════════════ */
+function renderClubs() {
+    const grid = document.getElementById('clubsGrid');
+    if (!grid) return;
+    const clubIcons = {
+        'sci-fi':  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+        'fantasy': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+        'romance': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+        'nonfic':  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+    };
+    grid.innerHTML = API.clubs.map(club => `
+        <article class="user-card">
+            <div class="user-card__header">
+                <div class="user-card__avatar user-card__avatar--club">${clubIcons[club.icon] || ''}</div>
+                <div>
+                    <h3 class="user-card__name">${club.name}</h3>
+                    <p class="user-card__username">${club.desc}</p>
+                    <span class="badge ${club.color}">${club.members} miembros</span>
+                </div>
+            </div>
+            <div class="user-card__footer" style="margin-top:auto">
+                <button class="btn btn--primary btn--sm" style="flex:1" onclick="joinClub(this, '${club.name}')">Unirse</button>
+                <button class="btn btn--outline btn--sm" onclick="showToast('Detalles del club próximamente')">Info</button>
+            </div>
+        </article>`).join('');
+}
+
+function joinClub(btn, name) {
+    if (btn.classList.contains('joined')) {
+        btn.classList.remove('joined');
+        btn.classList.remove('btn--following');
+        btn.classList.add('btn--primary');
+        btn.textContent = 'Unirse';
+        showToast(`Has salido del club "${name}"`);
+    } else {
+        btn.classList.add('joined', 'btn--following');
+        btn.classList.remove('btn--primary');
+        btn.textContent = 'En el club';
+        showToast(`Te has unido a "${name}"`);
+    }
+}
+
+/* ════════════════════════════════════════
+   RENDER: LIBRARY
+   ════════════════════════════════════════ */
+function renderLibrary(tab = 'all') {
+    currentLibraryTab = tab;
+    const grid = document.getElementById('libraryGrid');
+    if (!grid) return;
+    const lib = getLibrary();
+    const filtered = tab === 'all' ? lib : lib.filter(b => b.status === tab);
+
+    if (!filtered.length) {
+        const msgs = {
+            all:       { title:'Tu biblioteca está vacía', sub:'Explora el catálogo y añade tu primer libro' },
+            read:      { title:'Sin libros leídos aún',   sub:'Cuando termines un libro, márcalo aquí' },
+            reading:   { title:'No estás leyendo nada',   sub:'¡Empieza a leer algo hoy!' },
+            pending:   { title:'Sin libros pendientes',   sub:'Guarda libros que quieras leer' },
+            favorites: { title:'Sin favoritos aún',       sub:'Marca como favorito los libros que más te gusten' },
+        };
+        const m = msgs[tab] || msgs.all;
+        grid.innerHTML = `
+            <div class="library-empty" style="grid-column:1/-1">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--ink-5);margin:0 auto 1rem"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                <p class="library-empty__text">${m.title}</p>
+                <p class="library-empty__sub">${m.sub}</p>
+                <button class="btn btn--primary" onclick="navigateTo('catalog')">Ir al catálogo</button>
+            </div>`;
+        return;
+    }
+
+    grid.innerHTML = filtered.map(entry => {
+        const book = API.books.find(b => b.id === entry.id);
+        if (!book) return '';
+        const progress = entry.progress || (entry.status === 'read' ? 100 : entry.status === 'reading' ? (entry.readPct || Math.floor(Math.random() * 60) + 10) : 0);
+        return `
+        <article class="library-book" onclick="openBookModal(${book.id})">
+            <div class="library-book__cover">
+                <img src="${book.img}" alt="${book.title}" loading="lazy" width="180" height="240">
+                <span class="library-book__status badge ${STATUS_BADGE[entry.status]}">${STATUS_LABELS[entry.status]}</span>
+                <button class="library-book__remove" onclick="event.stopPropagation();confirmRemove(${book.id})" title="Eliminar de biblioteca">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="library-book__info">
+                <div class="library-book__title">${book.title}</div>
+                <div class="library-book__author">${book.author}</div>
+                ${entry.status === 'reading' ? `
+                <div class="library-progress">
+                    <div class="library-progress__bar"><div class="library-progress__fill" style="width:${progress}%"></div></div>
+                    <div class="library-progress__text">${progress}% completado</div>
+                </div>` : ''}
+            </div>
+        </article>`;
+    }).join('');
+}
+
+function switchLibraryTab(tab, btn) {
+    document.querySelectorAll('.library-tab').forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderLibrary(tab);
+}
+
+function confirmRemove(bookId) {
+    const book = API.books.find(b => b.id === bookId);
+    if (confirm(`¿Eliminar "${book?.title}" de tu biblioteca?`)) {
+        removeFromLibrary(bookId);
+        showToast('Libro eliminado de tu biblioteca');
+    }
+}
+
+/* ════════════════════════════════════════
+   CATALOG FILTERS
+   ════════════════════════════════════════ */
+function getFilteredBooks() {
+    const search = document.getElementById('catalogSearch')?.value?.toLowerCase() || '';
+    const genre  = document.getElementById('catalogGenre')?.value || '';
+    const sort   = document.getElementById('catalogSort')?.value || 'popular';
+    let filtered = [...API.books];
+    if (search) filtered = filtered.filter(b => b.title.toLowerCase().includes(search) || b.author.toLowerCase().includes(search));
+    if (genre)  filtered = filtered.filter(b => b.genre === genre);
+    switch (sort) {
+        case 'rating': filtered.sort((a,b) => b.rating - a.rating); break;
+        case 'recent': filtered.sort((a,b) => b.year - a.year); break;
+        case 'title':  filtered.sort((a,b) => a.title.localeCompare(b.title)); break;
+    }
+    return filtered;
+}
+
+function filterCatalog() { renderCatalog(getFilteredBooks()); }
+
+function selectGenre(el, genre) {
+    document.querySelectorAll('.genre-tag').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    const sel = document.getElementById('catalogGenre');
+    if (sel) sel.value = genre;
+    filterCatalog();
+}
+
+/* ════════════════════════════════════════
+   QUICK ADD LIBRARY MENU
+   ════════════════════════════════════════ */
+function quickAddLibrary(bookId, btn) {
+    if (isInLibrary(bookId)) {
+        removeFromLibrary(bookId);
+        btn.innerHTML = STATUS_ICONS.none;
+        btn.classList.remove('active');
+        showToast('Eliminado de tu biblioteca');
+    } else {
+        showLibraryAddMenu(bookId, btn);
+    }
+}
+
+function showLibraryAddMenu(bookId, btn) {
+    document.querySelector('.lib-add-menu')?.remove();
+    const menu = document.createElement('div');
+    menu.className = 'lib-add-menu';
+    const rect = btn.getBoundingClientRect();
+    menu.style.cssText = `position:fixed;top:${rect.bottom + 6}px;right:${window.innerWidth - rect.right}px;z-index:9999;`;
+    const options = [
+        { status:'reading',   label:'Estoy leyendo',  icon:STATUS_ICONS.reading },
+        { status:'read',      label:'Ya lo leí',      icon:STATUS_ICONS.read },
+        { status:'pending',   label:'Quiero leerlo',  icon:STATUS_ICONS.pending },
+        { status:'favorites', label:'Favorito',       icon:STATUS_ICONS.favorites },
+    ];
+    options.forEach(opt => {
+        const item = document.createElement('button');
+        item.className = 'lib-add-menu__item';
+        item.innerHTML = `<span class="lib-add-menu__icon">${opt.icon}</span>${opt.label}`;
+        item.onclick = () => {
+            addToLibrary(bookId, opt.status);
+            btn.innerHTML = STATUS_ICONS[opt.status];
+            btn.classList.add('active');
+            showToast(`Añadido a: ${opt.label}`);
+            menu.remove();
+        };
+        menu.appendChild(item);
+    });
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 50);
+}
+
+/* ════════════════════════════════════════
+   BOOK MODAL
+   ════════════════════════════════════════ */
+function openBookModal(id) {
+    const book   = API.books.find(b => b.id === id);
+    if (!book) return;
+    const status = getBookStatus(id);
+    const inLib  = !!status;
+    document.getElementById('bookModalBody').innerHTML = `
+        <div class="book-modal__cover"><img src="${book.img}" alt="${book.title}" width="260"></div>
+        <div class="book-modal__details">
+            <h2 id="bookModalTitle" class="book-modal__title">${book.title}</h2>
+            <p class="book-modal__author">${book.author}</p>
+            <div class="book-modal__tags">
+                <span class="badge badge--accent">${book.badge}</span>
+                <span class="badge badge--amber">★ ${book.rating}</span>
+                <span class="badge badge--neutral">${book.pages} págs.</span>
+                <span class="badge badge--neutral">${book.year}</span>
+                ${inLib ? `<span class="badge ${STATUS_BADGE[status]}">${STATUS_LABELS[status]}</span>` : ''}
+            </div>
+            <p class="book-modal__synopsis">${book.synopsis}</p>
+            <div class="book-modal__actions">
+                <button class="btn btn--primary" onclick="window.addToLibrary(${id},'reading');window.closeBookModal();window.showToast('Añadido: Estoy leyendo')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                    Empezar a leer
+                </button>
+                <button class="btn btn--outline" onclick="window.addToLibrary(${id},'pending');window.closeBookModal();window.showToast('Añadido a pendientes')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                    Pendiente
+                </button>
+                <button class="btn btn--ghost btn--icon" onclick="window.addToLibrary(${id},'favorites');window.closeBookModal();window.showToast('Añadido a favoritos')" title="Favorito">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                </button>
+            </div>
+        </div>`;
+    document.getElementById('bookModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+function closeBookModal() { document.getElementById('bookModal').classList.remove('show'); document.body.style.overflow = ''; }
+function closeBookModalBackdrop(e) { if (e.target === e.currentTarget) closeBookModal(); }
+
+/* ════════════════════════════════════════
+   PROFILE SYSTEM
+   ════════════════════════════════════════ */
+function openProfile(userId) {
+    const isCurrentUser = userId === 0;
+    let base, ext;
+    if (isCurrentUser) {
+        base = State.profile || PROFILE_DATA.currentUser;
+        ext  = {};
+    } else {
+        base = API.users.find(u => u.id === userId) || {};
+        ext  = PROFILE_DATA.extended[userId] || {};
+    }
+
+    const name     = base.name || 'Sin nombre';
+    const username = base.username || '';
+    const avatar   = base.avatar || '';
+    const level    = base.level || 'Lector';
+    const levelClass = base.levelClass || 'badge--neutral';
+    const bio      = isCurrentUser ? (base.bio || 'Sin biografía. Edita tu perfil para añadir una.') : (ext.bio || 'Sin biografía.');
+    const booksRead  = isCurrentUser ? getLibrary().length : base.booksRead;
+    const reviews    = base.reviews || 0;
+    const baseFollowers = isCurrentUser ? (base.followers || 0) : base.followers;
+    const following  = isCurrentUser ? (base.following || 0) : (ext.following || 0);
+    const recentBookIds = isCurrentUser ? PROFILE_DATA.currentUser.recentBooks : (ext.recentBooks || [0,1,2]);
+    const badges     = isCurrentUser ? (base.badges || []) : (ext.badges || []);
+    const genres     = isCurrentUser ? (base.genres || []) : (ext.genres || []);
+    const goalBooks  = isCurrentUser ? (base.goalBooks || 24) : 24;
+    const progressPct = isCurrentUser ? Math.min(100, Math.round((booksRead / goalBooks) * 100)) : Math.round((booksRead / 52) * 100);
+
+    const recentBooksHTML = recentBookIds.map(idx => {
+        const book = API.books[idx];
+        if (!book) return '';
+        return `<div class="profile-book-item" onclick="closeProfileModal();openBookModal(${book.id})">
+            <div class="profile-book-item__thumb"><img src="${book.img}" alt="${book.title}" loading="lazy" width="38" height="54"></div>
+            <div><div class="profile-book-item__title">${book.title}</div><div class="profile-book-item__author">${book.author}</div></div>
+            <span class="profile-book-item__stars">★ ${book.rating}</span>
+        </div>`;
+    }).join('');
+
+    const badgesHTML = badges.length ? badges.map(b => `
+        <div class="profile-badge-item">
+            <div class="profile-badge-item__icon">${getBadgeSVG(b.icon)}</div>
+            <span class="profile-badge-item__name">${b.name}</span>
+        </div>`).join('') : '<p style="color:var(--ink-5);font-size:0.9rem">Aún sin insignias. ¡Sigue leyendo!</p>';
+
+    const genresHTML = genres.length ? genres.map(g => `
+        <div class="profile-progress-item">
+            <div class="profile-progress-item__header"><span>${g.label}</span><span>${g.pct}%</span></div>
+            <div class="profile-progress-item__bar"><div class="profile-progress-item__fill" style="width:${g.pct}%"></div></div>
+        </div>`).join('') : '<p style="color:var(--ink-5);font-size:0.9rem">Edita tu perfil para añadir géneros favoritos.</p>';
+
+    const actionsHTML = isCurrentUser
+        ? `<button class="btn btn--primary btn--sm" onclick="openEditProfile()">Editar perfil</button>
+           <button class="btn btn--outline btn--sm" onclick="openSettings()">Ajustes</button>`
+        : (() => {
+            const nowFollowing = isFollowing(userId);
+            return `<button class="btn btn--sm ${nowFollowing ? 'btn--following' : 'btn--primary'}" id="profileFollowBtn-${userId}" onclick="handleFollow(${userId},this)">${nowFollowing ? 'Siguiendo' : 'Seguir'}</button>
+                    <button class="btn btn--outline btn--sm" onclick="showToast('Mensajes próximamente')">Mensaje</button>`;
+          })();
+
+    const avatarHTML = avatar
+        ? `<img src="${avatar}" alt="${name}" loading="lazy" width="88" height="88" id="profileAvatarImg" style="width:100%;height:100%;object-fit:cover;">`
+        : `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+
+    document.getElementById('profileModalBody').innerHTML = `
+        <div class="profile-cover"><div class="profile-cover__pattern"></div><div class="profile-cover__accent"></div></div>
+        <div class="profile-header">
+            <div class="profile-avatar-wrap">
+                <div class="profile-avatar ${isCurrentUser ? 'profile-avatar--editable' : ''}" ${isCurrentUser ? 'onclick="openEditProfile()" title=\'Cambiar avatar\'' : ''}>
+                    ${avatarHTML}
+                    ${isCurrentUser ? '<div class="profile-avatar__overlay"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>' : ''}
+                </div>
+                <span class="profile-online" title="En línea"></span>
+            </div>
+            <div class="profile-header__row">
+                <div>
+                    <h2 class="profile-name" id="profileModalTitle">${name}</h2>
+                    <p class="profile-username">${username} · <span class="badge ${levelClass}">${level}</span></p>
+                    <p class="profile-bio">${bio}</p>
+                </div>
+                <div class="profile-header__actions">${actionsHTML}</div>
+            </div>
+        </div>
+        <div class="profile-stats-bar">
+            <div class="profile-stat"><div class="profile-stat__num">${booksRead}</div><div class="profile-stat__label">Libros</div></div>
+            <div class="profile-stat"><div class="profile-stat__num">${reviews}</div><div class="profile-stat__label">Reseñas</div></div>
+            <div class="profile-stat"><div class="profile-stat__num" id="profileFollowerCount-${userId}">${baseFollowers + (isCurrentUser ? 0 : (isFollowing(userId) ? 1 : 0))}</div><div class="profile-stat__label">Seguidores</div></div>
+            <div class="profile-stat"><div class="profile-stat__num">${following}</div><div class="profile-stat__label">Siguiendo</div></div>
+            ${isCurrentUser ? `<div class="profile-stat"><div class="profile-stat__num">${progressPct}%</div><div class="profile-stat__label">Meta ${booksRead}/${goalBooks}</div></div>` : ''}
+        </div>
+        <div class="profile-body">
+            <div>
+                <p class="profile-section-label">Lecturas recientes</p>
+                <div class="profile-books-list">${recentBooksHTML || '<p style="color:var(--ink-5);font-size:0.9rem">Aún sin lecturas registradas.</p>'}</div>
+            </div>
+            <div>
+                <p class="profile-section-label">Logros</p>
+                <div class="profile-badges" style="margin-bottom:1.5rem">${badgesHTML}</div>
+                <p class="profile-section-label">Géneros favoritos</p>
+                <div class="profile-progress-list">${genresHTML}</div>
+            </div>
+        </div>`;
+
+    document.getElementById('profileModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function getBadgeSVG(icon) {
+    const svgs = {
+        award:          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>',
+        'book-open':    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+        book:           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+        'message-square':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+        'message-circle':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+        star:           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+        trophy:         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="11"/><path d="M7 4H4v5c0 2.76 2.24 5 5 5 .63 0 1.22-.13 1.77-.36"/><path d="M17 4h3v5c0 2.76-2.24 5-5 5-.63 0-1.22-.13-1.77-.36"/><polyline points="7 4 12 4 17 4"/></svg>',
+        flame:          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+        zap:            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+        'edit-3':       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
+        globe:          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+        search:         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+        target:         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+        crown:          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zM2 20h20"/></svg>',
+        heart:          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+        map:            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>',
+        shield:         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+    };
+    return svgs[icon] || svgs.star;
+}
+
+function closeProfileModal() { document.getElementById('profileModal').classList.remove('show'); document.body.style.overflow = ''; }
+function closeProfileOnBackdrop(e) { if (e.target === e.currentTarget) closeProfileModal(); }
+
+/* ════════════════════════════════════════
+   EDIT PROFILE
+   ════════════════════════════════════════ */
+function openEditProfile() {
+    const profile = State.profile || {};
+    closeProfileModal();
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    set('editName',     profile.name);
+    set('editUsername', (profile.username || '').replace('@',''));
+    set('editBio',      profile.bio);
+    set('editGoal',     profile.goalBooks || 24);
+    const preview = document.getElementById('editAvatarPreview');
+    if (preview) { preview.src = profile.avatar || ''; preview.style.display = profile.avatar ? 'block' : 'none'; }
+    // Mark selected avatar
+    document.querySelectorAll('#editAvatarGrid .avatar-option').forEach(opt => {
+        opt.classList.toggle('selected', opt.dataset.url === profile.avatar);
+    });
+    document.getElementById('editProfileModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+function closeEditProfile() { document.getElementById('editProfileModal').classList.remove('show'); document.body.style.overflow = ''; }
+function closeEditProfileOnBackdrop(e) { if (e.target === e.currentTarget) closeEditProfile(); }
+
+function selectAvatar(el, url) {
+    document.querySelectorAll('#editAvatarGrid .avatar-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    const preview = document.getElementById('editAvatarPreview');
+    if (preview) { preview.src = url; preview.style.display = 'block'; }
+}
+
+function saveProfile() {
+    const name   = document.getElementById('editName')?.value?.trim();
+    const rawUser = document.getElementById('editUsername')?.value?.trim();
+    const bio    = document.getElementById('editBio')?.value?.trim();
+    const goal   = parseInt(document.getElementById('editGoal')?.value) || 24;
+    const selectedOpt = document.querySelector('#editAvatarGrid .avatar-option.selected');
+    const newAvatar = selectedOpt?.dataset?.url || State.profile?.avatar || '';
+
+    if (!name) { showToast('El nombre es obligatorio', true); return; }
+    const username = '@' + (rawUser || name.toLowerCase().replace(/\s/g, '')).replace('@','');
+
+    const existing = State.profile || {};
+    const updated = { ...existing, name, username, bio, goalBooks: goal, avatar: newAvatar };
+    // Compute level based on library size
+    const libSize = getLibrary().length;
+    if (libSize >= 100) { updated.level = 'Lector Épico'; updated.levelClass = 'badge--accent'; }
+    else if (libSize >= 50)  { updated.level = 'Devorador';   updated.levelClass = 'badge--sage'; }
+    else if (libSize >= 20)  { updated.level = 'Lector Pro';  updated.levelClass = 'badge--cobalt'; }
+    else if (libSize >= 5)   { updated.level = 'Explorador';  updated.levelClass = 'badge--amber'; }
+    else                     { updated.level = 'Nuevo lector';updated.levelClass = 'badge--neutral'; }
+    State.profile = updated;
+
+    // Update navbar avatar
+    const navImg = document.getElementById('navAvatarImg');
+    const navPh  = document.getElementById('navAvatarPlaceholder');
+    if (navImg && newAvatar) { navImg.src = newAvatar; navImg.style.display = 'block'; }
+    if (navPh)  navPh.style.display = newAvatar ? 'none' : 'flex';
+
+    closeEditProfile();
+    showToast('Perfil actualizado correctamente');
+    updateLibraryStats();
+}
+
+/* ════════════════════════════════════════
+   SETTINGS
+   ════════════════════════════════════════ */
+function openSettings() {
+    closeProfileModal();
+    const toggle = document.getElementById('settingDarkMode');
+    if (toggle) toggle.checked = State.theme === 'dark';
+    document.getElementById('settingsModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); document.body.style.overflow = ''; }
+function closeSettingsOnBackdrop(e) { if (e.target === e.currentTarget) closeSettings(); }
+function saveSettings() { closeSettings(); showToast('Configuración guardada'); }
+
+/* ════════════════════════════════════════
+   SEARCH
+   ════════════════════════════════════════ */
+function toggleSearch() {
+    const overlay = document.getElementById('searchOverlay');
+    overlay.classList.toggle('show');
+    if (overlay.classList.contains('show')) setTimeout(() => document.getElementById('searchInput')?.focus(), 100);
+}
+function closeSearchOnBackdrop(e) { if (e.target === e.currentTarget) toggleSearch(); }
+function handleSearch() {
+    const query   = document.getElementById('searchInput')?.value.toLowerCase().trim() || '';
+    const results = document.getElementById('searchResults');
+    if (!results) return;
+    if (!query) { results.innerHTML = '<p class="search-hint">Escribe para buscar libros...</p>'; return; }
+    const filtered = API.books.filter(b => b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query));
+    if (!filtered.length) { results.innerHTML = '<p class="search-hint">Sin resultados para "' + query + '"</p>'; return; }
+    results.innerHTML = filtered.map(book => `
+        <div class="search-result-item" onclick="toggleSearch();navigateTo('catalog');openBookModal(${book.id})">
+            <div class="search-result-item__img"><img src="${book.img}" alt="${book.title}" width="40" height="56"></div>
+            <div class="search-result-item__info"><h4>${book.title}</h4><p>${book.author} · ${book.genre}</p></div>
+        </div>`).join('');
+}
+
+/* ════════════════════════════════════════
+   COMMUNITY TABS
+   ════════════════════════════════════════ */
+function switchTab(tabId, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.community-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + tabId)?.classList.add('active');
+    if (btn) btn.classList.add('active');
+}
+
+function toggleFaq(btn) {
+    const item = btn.parentElement;
+    const wasOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+    if (!wasOpen) item.classList.add('open');
+}
+
+/* ════════════════════════════════════════
+   MOBILE MENU
+   ════════════════════════════════════════ */
+function toggleMobile() {
+    const toggle = document.getElementById('mobileToggle');
+    const menu   = document.getElementById('mobileMenu');
+    toggle.classList.toggle('active');
+    menu.classList.toggle('show');
+    document.body.style.overflow = menu.classList.contains('show') ? 'hidden' : '';
+}
+function closeMobile() {
+    document.getElementById('mobileToggle')?.classList.remove('active');
+    document.getElementById('mobileMenu')?.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+/* ════════════════════════════════════════
+   TOAST
+   ════════════════════════════════════════ */
+function showToast(message, isError = false) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast ${isError ? 'toast--error' : ''}`;
+    const icon = isError
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+    toast.innerHTML = `<span class="toast__icon">${icon}</span><span class="toast__message">${message}</span><button class="toast__close" onclick="this.parentElement.remove()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4000);
+}
+
+/* ════════════════════════════════════════
+   FORMS
+   ════════════════════════════════════════ */
+function handleNewsletter(e) { e.preventDefault(); showToast('Suscripción exitosa. Bienvenido a la newsletter.'); e.target.reset(); }
+function handleContact(e)    { e.preventDefault(); showToast('Mensaje enviado. Te responderemos pronto.'); e.target.reset(); }
+
+/* ════════════════════════════════════════
+   SCROLL
+   ════════════════════════════════════════ */
+function handleScroll() {
+    document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 50);
+    document.getElementById('scrollTop')?.classList.toggle('show', window.scrollY > 400);
+}
+function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+window.addEventListener('scroll', handleScroll, { passive: true });
+
+/* ════════════════════════════════════════
+   KEYBOARD
+   ════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); toggleSearch(); }
+    if (e.key === 'Escape') {
+        document.getElementById('searchOverlay')?.classList.remove('show');
+        closeBookModal(); closeProfileModal(); closeEditProfile(); closeSettings();
+    }
+});
+
+/* ════════════════════════════════════════
+   EXPOSE GLOBALS
+   ════════════════════════════════════════ */
+Object.assign(window, {
+    navigateTo, toggleSearch, closeSearchOnBackdrop, handleSearch, closeBookModalBackdrop,
+    openBlogPost, closeBlogModal, closeBlogOnBackdrop,
+    openProfile, closeProfileModal, closeProfileOnBackdrop,
+    openEditProfile, closeEditProfile, closeEditProfileOnBackdrop, selectAvatar, saveProfile,
+    openSettings, closeSettings, closeSettingsOnBackdrop, saveSettings,
+    toggleTheme, toggleThemeFromSettings,
+    filterCatalog, selectGenre, openBookModal, closeBookModal,
+    quickAddLibrary, switchLibraryTab, confirmRemove,
+    handleFollow, joinClub,
+    switchTab, toggleFaq, toggleMobile, showToast,
+    handleNewsletter, handleContact, scrollToTop,
+    // onboarding
+    obNext, obBack, obSelectAvatar, obToggleGenre, obFinish,
+});
+
+/* ════════════════════════════════════════
+   INIT
+   ════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', async () => {
+    applyTheme(State.theme);
+
+    // Check if profile exists
+    if (!State.profileSetup) {
+        showOnboarding();
+    } else {
+        hideOnboarding();
+        const profile = State.profile;
+        if (profile?.avatar) {
+            const navImg = document.getElementById('navAvatarImg');
+            const navPh  = document.getElementById('navAvatarPlaceholder');
+            if (navImg) { navImg.src = profile.avatar; navImg.style.display = 'block'; }
+            if (navPh)  navPh.style.display = 'none';
+        }
+    }
+
+    // Cargar datos desde Strapi
+    try {
+        const counts = await loadFromStrapi();
+        console.log('[BookGram] Datos cargados desde Strapi:', counts);
+    } catch (e) {
+        console.warn('[BookGram] No se pudo conectar con Strapi, usando datos en caché:', e.message);
+    }
+
+    // Render all sections
+    renderTrendingBooks();
+    renderCatalog(API.books);
+    renderBlog();
+    renderUsers();
+    renderActivity();
+    renderChallenges();
+    renderClubs();
+    updateLibraryStats();
+
+    // Hash routing
+    const hash = window.location.hash.replace('#', '');
+    if (hash && ['home','catalog','library','blog','community','contact'].includes(hash)) navigateTo(hash);
+
+    // Scroll animations
+    const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.feature-card,.testimonial-card,.book-card-full,.blog-card,.user-card,.challenge-card,.community-stat-card,.contact-info-card,.library-stat').forEach(el => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(18px)';
+        el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+        observer.observe(el);
+    });
+});

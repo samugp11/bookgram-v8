@@ -1,0 +1,79 @@
+---
+---
+<section class="page" id="page-library">
+  <header class="page-header">
+    <div class="container page-header__row">
+      <div>
+        <h1 class="page-header__title">Mi Biblioteca</h1>
+        <p class="page-header__subtitle">Tu colección personal de libros</p>
+      </div>
+      <button class="btn btn--primary" onclick="navigateTo('catalog')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Añadir libros
+      </button>
+    </div>
+  </header>
+  <div class="section">
+    <div class="container">
+      <div class="library-stats" id="libraryStats">
+        <div class="library-stat">
+          <div class="library-stat__icon library-stat__icon--cobalt">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="library-stat__num" id="statRead">0</div>
+          <div class="library-stat__label">Leídos</div>
+        </div>
+        <div class="library-stat">
+          <div class="library-stat__icon library-stat__icon--accent">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          </div>
+          <div class="library-stat__num" id="statReading">0</div>
+          <div class="library-stat__label">Leyendo</div>
+        </div>
+        <div class="library-stat">
+          <div class="library-stat__icon library-stat__icon--amber">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="library-stat__num" id="statPending">0</div>
+          <div class="library-stat__label">Pendientes</div>
+        </div>
+        <div class="library-stat">
+          <div class="library-stat__icon library-stat__icon--sage">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          </div>
+          <div class="library-stat__num" id="statFav">0</div>
+          <div class="library-stat__label">Favoritos</div>
+        </div>
+      </div>
+
+      <div class="reading-goal" id="readingGoalCard">
+        <div class="reading-goal__info">
+          <div class="reading-goal__title-row">
+            <h3 class="reading-goal__title">Meta de lectura 2026</h3>
+            <button class="reading-goal__edit" onclick="openEditProfile()" title="Cambiar meta">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          </div>
+          <p class="reading-goal__subtitle" id="goalSubtitle">Llevas 0 de 24 libros este año.</p>
+          <div class="reading-goal__bar">
+            <div class="reading-goal__fill" id="goalFill" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="reading-goal__stats">
+          <div class="reading-goal__num" id="goalNum">0%</div>
+          <div class="reading-goal__label">completado</div>
+        </div>
+      </div>
+
+      <div class="library-tabs">
+        <button class="library-tab active" onclick="switchLibraryTab('all',this)">Todos</button>
+        <button class="library-tab" onclick="switchLibraryTab('reading',this)">Leyendo</button>
+        <button class="library-tab" onclick="switchLibraryTab('read',this)">Leídos</button>
+        <button class="library-tab" onclick="switchLibraryTab('pending',this)">Pendientes</button>
+        <button class="library-tab" onclick="switchLibraryTab('favorites',this)">Favoritos</button>
+      </div>
+
+      <div id="libraryGrid" class="library-grid"></div>
+    </div>
+  </div>
+</section>

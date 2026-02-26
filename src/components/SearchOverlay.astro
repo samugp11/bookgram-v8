@@ -1,0 +1,14 @@
+---
+---
+<div class="search-overlay" id="searchOverlay" onclick="closeSearchOnBackdrop(event)">
+  <div class="search-box" role="search">
+    <div class="search-box__input-wrap">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" class="search-box__input" placeholder="Buscar libros, autores, géneros..." id="searchInput" oninput="handleSearch()" aria-label="Búsqueda de libros">
+      <button class="search-box__close" onclick="toggleSearch()">ESC</button>
+    </div>
+    <div class="search-box__results" id="searchResults">
+      <p style="text-align:center;color:var(--gray-400);padding:2rem;font-size:0.9rem;">Escribe para buscar...</p>
+    </div>
+  </div>
+</div>
