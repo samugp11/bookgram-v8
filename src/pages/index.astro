@@ -27,28 +27,118 @@ import ContactPage from '../components/pages/ContactPage.astro';
   </main>
   <Footer />
   <script>
+// ═══════════════════════════════════════════
+// STRAPI — conexión con el backend
+// ═══════════════════════════════════════════
+const STRAPI_URL = 'http://89.167.92.61:1337';
+
+async function strapiGet(path) {
+    try {
+        const res = await fetch(`${STRAPI_URL}/api/${path}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        return json.data || [];
+    } catch(e) {
+        console.warn('[BookGram] Strapi no disponible:', e.message);
+        return [];
+    }
+}
+
+function normalizeBook(item) {
+    const a = item.attributes || item;
+    return {
+        id:       item.id,
+        title:    a.titulo   || '',
+        author:   a.autor    || '',
+        genre:    a.genero   || '',
+        rating:   a.rating_medio || 0,
+        price:    a.precio ? `€${Number(a.precio).toFixed(2)}` : '€0.00',
+        year:     a.anio    || 0,
+        pages:    a.paginas || 0,
+        badge:    a.badge   || '',
+        img:      a.portada_url || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop',
+        synopsis: a.sinopsis || '',
+    };
+}
+
+function normalizePost(item) {
+    const a = item.attributes || item;
+    const autor = a.autor?.data?.attributes || a.autor || {};
+    return {
+        id:       item.id,
+        title:    a.titulo   || '',
+        tag:      a.tag      || '',
+        tagClass: a.tag_class || 'badge--cobalt',
+        excerpt:  a.extracto || '',
+        author:   autor.nombre || 'BookGram',
+        avatar:   autor.avatar_url || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face',
+        date:     a.fecha_pub ? new Date(a.fecha_pub).toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' }) : '',
+        readTime: a.tiempo_lectura || '5 min',
+        img:      a.imagen_url || 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop',
+        content:  a.contenido || '',
+    };
+}
+
+function normalizeUser(item) {
+    const a = item.attributes || item;
+    return {
+        id:         item.id,
+        name:       a.nombre  || '',
+        username:   '@' + (a.usuario?.data?.attributes?.username || a.usuario?.username || 'user'),
+        level:      a.nivel   || 'Nuevo lector',
+        levelClass: a.nivel_class || 'badge--neutral',
+        booksRead:  a.libros_leidos || 0,
+        reviews:    a.total_resenas || 0,
+        followers:  a.seguidores || 0,
+        following:  a.siguiendo_count || 0,
+        avatar:     a.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=face',
+        books:      ['https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=100&h=140&fit=crop','https://images.unsplash.com/photo-1512820790803-83ca734da794?w=100&h=140&fit=crop','https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=100&h=140&fit=crop'],
+        bio:        a.bio || '',
+        genres:     Array.isArray(a.generos_fav) ? a.generos_fav.map(g => ({ label: g, pct: 80 })) : [],
+    };
+}
+
+function normalizeReto(item) {
+    const a = item.attributes || item;
+    const parts = a.participantes?.data || [];
+    return {
+        id:              item.id,
+        title:           a.titulo      || '',
+        desc:            a.descripcion || '',
+        progress:        a.meta_numero > 0 ? Math.min(100, Math.round(((a.total_part||0) / a.meta_numero) * 100)) : 0,
+        current:         `${a.total_part || 0} participantes`,
+        goal:            `Meta: ${a.meta_numero || 0}`,
+        colorClass:      a.color_class || '--cobalt',
+        participants:    parts.slice(0,3).map(() => 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop&crop=face'),
+        participantCount:`${a.total_part || 0} lectores`,
+        badgeText:       a.badge_text  || 'Activo',
+        badgeClass:      a.badge_class || 'badge--sage',
+    };
+}
+
+// Datos hardcodeados como fallback mientras Strapi carga
 const API = {
     books: [
-        { id:1,  title:"Cien años de soledad",    author:"Gabriel García Márquez", genre:"ficcion",        rating:4.9, price:"€12.99", year:1967, pages:417, badge:"Bestseller",  img:"https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop", synopsis:"Una de las obras más significativas del siglo XX. La saga de la familia Buendía en el mítico pueblo de Macondo recorre cien años de historia latinoamericana con un estilo de realismo mágico inconfundible." },
-        { id:2,  title:"1984",                    author:"George Orwell",           genre:"ciencia-ficcion",rating:4.8, price:"€10.50", year:1949, pages:328, badge:"Clásico",     img:"https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&h=600&fit=crop", synopsis:"Una novela distópica que explora los peligros del totalitarismo. Winston Smith vive en un mundo donde el Gran Hermano todo lo ve y la verdad es lo que el Partido dice que es." },
-        { id:3,  title:"El nombre del viento",    author:"Patrick Rothfuss",        genre:"fantasia",       rating:4.7, price:"€14.99", year:2007, pages:662, badge:"Favorito",    img:"https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=400&h=600&fit=crop", synopsis:"Kvothe, el hombre más buscado del mundo, cuenta su historia. De huérfano a leyenda, una épica de magia, música y misterio que redefine la fantasía moderna." },
-        { id:4,  title:"El principito",           author:"Antoine de Saint-Exupéry",genre:"ficcion",        rating:4.9, price:"€8.99",  year:1943, pages:96,  badge:"Esencial",   img:"https://images.unsplash.com/photo-1589998059171-988d887df646?w=400&h=600&fit=crop", synopsis:"Un piloto varado en el Sahara se encuentra con un pequeño príncipe. Una fábula filosófica sobre la amistad, el amor y lo esencial de la vida." },
-        { id:5,  title:"Sapiens",                 author:"Yuval Noah Harari",       genre:"no-ficcion",     rating:4.6, price:"€16.99", year:2011, pages:443, badge:"Trending",    img:"https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=400&h=600&fit=crop", synopsis:"Un recorrido fascinante por la historia de la humanidad desde los primeros Homo sapiens hasta las revoluciones que han moldeado nuestra civilización actual." },
-        { id:6,  title:"Dune",                    author:"Frank Herbert",           genre:"ciencia-ficcion",rating:4.7, price:"€13.50", year:1965, pages:412, badge:"Épico",       img:"https://images.unsplash.com/photo-1531988042231-d39a9cc12a9a?w=400&h=600&fit=crop", synopsis:"En el planeta Arrakis, Paul Atreides debe cumplir su destino. Una obra maestra de ciencia ficción que explora política, religión y ecología." },
-        { id:7,  title:"Orgullo y prejuicio",     author:"Jane Austen",             genre:"romance",        rating:4.8, price:"€9.99",  year:1813, pages:432, badge:"Clásico",    img:"https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=400&h=600&fit=crop", synopsis:"Elizabeth Bennet y el señor Darcy protagonizan una de las historias de amor más memorables de la literatura." },
-        { id:8,  title:"El código Da Vinci",      author:"Dan Brown",               genre:"misterio",       rating:4.3, price:"€11.99", year:2003, pages:454, badge:"Thriller",    img:"https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=600&fit=crop", synopsis:"Robert Langdon se ve envuelto en un misterio que involucra al Louvre, Leonardo da Vinci y una sociedad secreta." },
-        { id:9,  title:"Cosmos",                  author:"Carl Sagan",              genre:"ciencia",        rating:4.8, price:"€15.50", year:1980, pages:396, badge:"Esencial",    img:"https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=400&h=600&fit=crop", synopsis:"Un viaje épico por el universo de la mano de Carl Sagan. Una exploración magistral de nuestro lugar en el cosmos." },
-        { id:10, title:"La sombra del viento",    author:"Carlos Ruiz Zafón",       genre:"misterio",       rating:4.6, price:"€13.99", year:2001, pages:565, badge:"Popular",     img:"https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop&sat=-50", synopsis:"Barcelona, 1945. Daniel Sempere descubre un libro maldito que cambiará su vida. Un misterio literario ambientado en la posguerra española." },
-        { id:11, title:"Breve historia del tiempo",author:"Stephen Hawking",        genre:"ciencia",        rating:4.5, price:"€14.50", year:1988, pages:256, badge:"Clásico",     img:"https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=400&h=600&fit=crop", synopsis:"Stephen Hawking explica el universo de forma accesible: desde el Big Bang hasta los agujeros negros." },
-        { id:12, title:"El hobbit",               author:"J.R.R. Tolkien",          genre:"fantasia",       rating:4.7, price:"€12.99", year:1937, pages:310, badge:"Clásico",    img:"https://images.unsplash.com/photo-1589998059171-988d887df646?w=400&h=600&fit=crop&sat=-30", synopsis:"Bilbo Bolsón emprende una aventura inesperada con enanos para recuperar su reino del temible dragón Smaug." },
+        { id:1,  title:"Cien años de soledad",    author:"Gabriel García Márquez", genre:"ficcion",        rating:4.9, price:"€12.99", year:1967, pages:417, badge:"Bestseller",  img:"https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop", synopsis:"Una de las obras más significativas del siglo XX." },
+        { id:2,  title:"1984",                    author:"George Orwell",           genre:"ciencia-ficcion",rating:4.8, price:"€10.50", year:1949, pages:328, badge:"Clásico",     img:"https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&h=600&fit=crop", synopsis:"Una novela distópica que explora los peligros del totalitarismo." },
+        { id:3,  title:"El nombre del viento",    author:"Patrick Rothfuss",        genre:"fantasia",       rating:4.7, price:"€14.99", year:2007, pages:662, badge:"Favorito",    img:"https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=400&h=600&fit=crop", synopsis:"Kvothe cuenta su historia." },
+        { id:4,  title:"El principito",           author:"Antoine de Saint-Exupéry",genre:"ficcion",        rating:4.9, price:"€8.99",  year:1943, pages:96,  badge:"Esencial",   img:"https://images.unsplash.com/photo-1589998059171-988d887df646?w=400&h=600&fit=crop", synopsis:"Una fábula filosófica." },
+        { id:5,  title:"Sapiens",                 author:"Yuval Noah Harari",       genre:"no-ficcion",     rating:4.6, price:"€16.99", year:2011, pages:443, badge:"Trending",    img:"https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=400&h=600&fit=crop", synopsis:"Historia de la humanidad." },
+        { id:6,  title:"Dune",                    author:"Frank Herbert",           genre:"ciencia-ficcion",rating:4.7, price:"€13.50", year:1965, pages:412, badge:"Épico",       img:"https://images.unsplash.com/photo-1531988042231-d39a9cc12a9a?w=400&h=600&fit=crop", synopsis:"Paul Atreides en Arrakis." },
+        { id:7,  title:"Orgullo y prejuicio",     author:"Jane Austen",             genre:"romance",        rating:4.8, price:"€9.99",  year:1813, pages:432, badge:"Clásico",    img:"https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=400&h=600&fit=crop", synopsis:"Elizabeth Bennet y Darcy." },
+        { id:8,  title:"El código Da Vinci",      author:"Dan Brown",               genre:"misterio",       rating:4.3, price:"€11.99", year:2003, pages:454, badge:"Thriller",    img:"https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=600&fit=crop", synopsis:"Robert Langdon en el Louvre." },
+        { id:9,  title:"Cosmos",                  author:"Carl Sagan",              genre:"ciencia",        rating:4.8, price:"€15.50", year:1980, pages:396, badge:"Esencial",    img:"https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=400&h=600&fit=crop", synopsis:"El universo de Carl Sagan." },
+        { id:10, title:"La sombra del viento",    author:"Carlos Ruiz Zafón",       genre:"misterio",       rating:4.6, price:"€13.99", year:2001, pages:565, badge:"Popular",     img:"https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop&sat=-50", synopsis:"Barcelona 1945." },
+        { id:11, title:"Breve historia del tiempo",author:"Stephen Hawking",        genre:"ciencia",        rating:4.5, price:"€14.50", year:1988, pages:256, badge:"Clásico",     img:"https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=400&h=600&fit=crop", synopsis:"El universo accesible." },
+        { id:12, title:"El hobbit",               author:"J.R.R. Tolkien",          genre:"fantasia",       rating:4.7, price:"€12.99", year:1937, pages:310, badge:"Clásico",    img:"https://images.unsplash.com/photo-1589998059171-988d887df646?w=400&h=600&fit=crop&sat=-30", synopsis:"Bilbo y el dragón Smaug." },
     ],
     blogPosts: [
-        { id:1, title:"10 libros de fantasía que debes leer antes de morir", tag:"Fantasía", tagClass:"badge--cobalt", excerpt:"Una selección de las mejores obras del género fantástico que han marcado generaciones de lectores.", author:"Carlos Ruiz", avatar:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face", date:"15 Ene 2026", readTime:"6 min", img:"https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop" },
-        { id:2, title:"Cómo crear el hábito de la lectura diaria en 2026", tag:"Consejos", tagClass:"badge--sage", excerpt:"Técnicas probadas y consejos prácticos para incorporar la lectura en tu rutina sin esfuerzo.", author:"María López", avatar:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face", date:"10 Ene 2026", readTime:"5 min", img:"https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?w=600&h=400&fit=crop" },
-        { id:3, title:"Reseña: 'El problema de los tres cuerpos' de Liu Cixin", tag:"Reseña", tagClass:"badge--amber", excerpt:"Analizamos en profundidad esta obra maestra de la ciencia ficción china que conquistó el mundo.", author:"Pedro Gómez", avatar:"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face", date:"4 Ene 2026", readTime:"7 min", img:"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&h=400&fit=crop" },
-        { id:4, title:"Los mejores clubes de lectura online: guía completa", tag:"Comunidad", tagClass:"badge--cobalt", excerpt:"Descubre los clubes de lectura virtuales más activos y cómo unirte para compartir tu pasión.", author:"Laura Martín", avatar:"https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face", date:"28 Dic 2025", readTime:"4 min", img:"https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&h=400&fit=crop" },
-        { id:5, title:"Autores independientes: las joyas ocultas de 2025", tag:"Indie", tagClass:"badge--accent", excerpt:"Selección de autores autopublicados que están revolucionando el panorama literario actual.", author:"Ana Torres", avatar:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&h=80&fit=crop&crop=face", date:"20 Dic 2025", readTime:"8 min", img:"https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=600&h=400&fit=crop" },
-        { id:6, title:"Ciencia ficción vs fantasía: ¿cuál es tu género?", tag:"Debate", tagClass:"badge--amber", excerpt:"Exploramos las diferencias, similitudes y por qué no tienes que elegir entre estos dos géneros.", author:"Carlos Ruiz", avatar:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face", date:"12 Dic 2025", readTime:"5 min", img:"https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=600&h=400&fit=crop" },
+        { id:1, title:"10 libros de fantasía que debes leer antes de morir", tag:"Fantasía", tagClass:"badge--cobalt", excerpt:"Una selección de las mejores obras del género fantástico.", author:"Carlos Ruiz", avatar:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face", date:"15 Ene 2026", readTime:"6 min", img:"https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop", content:'' },
+        { id:2, title:"Cómo crear el hábito de la lectura diaria en 2026", tag:"Consejos", tagClass:"badge--sage", excerpt:"Técnicas probadas para leer más.", author:"María López", avatar:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face", date:"10 Ene 2026", readTime:"5 min", img:"https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?w=600&h=400&fit=crop", content:'' },
+        { id:3, title:"Reseña: 'El problema de los tres cuerpos'", tag:"Reseña", tagClass:"badge--amber", excerpt:"Obra maestra de la ciencia ficción china.", author:"Pedro Gómez", avatar:"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face", date:"4 Ene 2026", readTime:"7 min", img:"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&h=400&fit=crop", content:'' },
+        { id:4, title:"Los mejores clubes de lectura online", tag:"Comunidad", tagClass:"badge--cobalt", excerpt:"Guía completa de clubes virtuales.", author:"Laura Martín", avatar:"https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face", date:"28 Dic 2025", readTime:"4 min", img:"https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&h=400&fit=crop", content:'' },
+        { id:5, title:"Autores independientes: las joyas ocultas de 2025", tag:"Indie", tagClass:"badge--accent", excerpt:"Autores autopublicados que debes conocer.", author:"Ana Torres", avatar:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&h=80&fit=crop&crop=face", date:"20 Dic 2025", readTime:"8 min", img:"https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=600&h=400&fit=crop", content:'' },
+        { id:6, title:"Ciencia ficción vs fantasía: ¿cuál es tu género?", tag:"Debate", tagClass:"badge--amber", excerpt:"Diferencias, similitudes y por qué no tienes que elegir.", author:"Carlos Ruiz", avatar:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face", date:"12 Dic 2025", readTime:"5 min", img:"https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=600&h=400&fit=crop", content:'' },
     ],
     users: [
         { id:1, name:"María García",    username:"@marialectora",  level:"Lectora Épica",  levelClass:"badge--accent",   booksRead:120, reviews:45, followers:234, following:67,  avatar:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=face", books:["https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=100&h=140&fit=crop","https://images.unsplash.com/photo-1512820790803-83ca734da794?w=100&h=140&fit=crop","https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=100&h=140&fit=crop"] },
@@ -60,11 +150,9 @@ const API = {
     ],
     activities: [
         { user:"María García",    avatar:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face", action:"terminó de leer",    book:"Cien años de soledad", bookAuthor:"García Márquez",    bookImg:"https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=80&h=110&fit=crop",  time:"Hace 2 horas",  rating:"★★★★★" },
-        { user:"Carlos Ruiz",     avatar:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face", action:"escribió una reseña de", book:"Dune",             bookAuthor:"Frank Herbert",      bookImg:"https://images.unsplash.com/photo-1531988042231-d39a9cc12a9a?w=80&h=110&fit=crop", time:"Hace 4 horas",  rating:"★★★★★" },
+        { user:"Carlos Ruiz",     avatar:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face", action:"escribió una reseña de", book:"Dune",         bookAuthor:"Frank Herbert",      bookImg:"https://images.unsplash.com/photo-1531988042231-d39a9cc12a9a?w=80&h=110&fit=crop", time:"Hace 4 horas",  rating:"★★★★★" },
         { user:"Laura Martín",    avatar:"https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face", action:"comenzó a leer",      book:"El nombre del viento", bookAuthor:"Patrick Rothfuss", bookImg:"https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=80&h=110&fit=crop",  time:"Hace 5 horas",  rating:"" },
-        { user:"Pedro Gómez",     avatar:"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face", action:"añadió a pendientes", book:"Sapiens",             bookAuthor:"Yuval Noah Harari", bookImg:"https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=80&h=110&fit=crop", time:"Hace 6 horas",  rating:"" },
-        { user:"Ana Torres",      avatar:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&h=80&fit=crop&crop=face", action:"completó el reto",    book:"Maratón de Fantasía",  bookAuthor:"12 libros leídos", bookImg:"https://images.unsplash.com/photo-1589998059171-988d887df646?w=80&h=110&fit=crop", time:"Hace 8 horas",  rating:"" },
-        { user:"Diego Fernández", avatar:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face", action:"se unió al club",     book:"Lectores de Sci-Fi",   bookAuthor:"48 miembros",      bookImg:"https://images.unsplash.com/photo-1531988042231-d39a9cc12a9a?w=80&h=110&fit=crop", time:"Hace 12 horas", rating:"" },
+        { user:"Pedro Gómez",     avatar:"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face", action:"añadió a pendientes", book:"Sapiens",         bookAuthor:"Yuval Noah Harari", bookImg:"https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=80&h=110&fit=crop", time:"Hace 6 horas",  rating:"" },
     ],
     challenges: [
         { id:1, title:"Maratón de lectura 2026",    desc:"Lee 52 libros en un año, uno por semana.",             progress:18, current:"9/52 libros",   goal:"Meta: 52",  colorClass:"--cobalt",  participants:["https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop&crop=face","https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&h=60&fit=crop&crop=face","https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=60&h=60&fit=crop&crop=face"], participantCount:"234 lectores", badgeText:"Activo", badgeClass:"badge--sage" },
@@ -72,41 +160,27 @@ const API = {
         { id:3, title:"Explorador de géneros",      desc:"Lee al menos un libro de 10 géneros diferentes.",     progress:80, current:"8/10 géneros",   goal:"Meta: 10",  colorClass:"--accent",  participants:["https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=60&h=60&fit=crop&crop=face","https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop&crop=face","https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&h=60&fit=crop&crop=face"], participantCount:"312 lectores", badgeText:"En curso", badgeClass:"badge--cobalt" },
     ],
     clubs: [
-        { id:1, name:"Lectores de Ciencia Ficción", desc:"Para amantes de mundos futuros y tecnología",      members:48,  icon:"sci-fi",    color:"badge--cobalt" },
+        { id:1, name:"Lectores de Ciencia Ficción", desc:"Para amantes de mundos futuros y tecnología",       members:48,  icon:"sci-fi",    color:"badge--cobalt" },
         { id:2, name:"Club de Fantasía Épica",       desc:"Dragones, magia y mundos imposibles",              members:63,  icon:"fantasy",   color:"badge--cobalt" },
         { id:3, name:"Románticos Empedernidos",      desc:"Las mejores historias de amor de todos los tiempos",members:35, icon:"romance",   color:"badge--amber" },
         { id:4, name:"Non-Fiction Addicts",          desc:"Aprender algo nuevo cada semana",                  members:41,  icon:"nonfic",    color:"badge--sage" },
     ]
 };
 
-const PROFILE_DATA = {
-    currentUser: {
-        id: 0,
-        name: "",
-        username: "",
-        bio: "",
-        avatar: "",
-        level: "Nuevo lector",
-        levelClass: "badge--neutral",
-        booksRead: 0,
-        reviews: 0,
-        followers: 0,
-        following: 0,
-        booksThisYear: 0,
-        goalBooks: 24,
-        recentBooks: [],
-        badges: [],
-        genres: []
-    },
-    extended: {
-        1: { bio:"Amante de los clásicos y la literatura latinoamericana. Fundadora del club 'Páginas en Femenino'.", following:89, recentBooks:[0,6,9,3,1], badges:[{icon:"award",name:"Top 10"},{icon:"book-open",name:"120 Libros"},{icon:"message-square",name:"50 Reseñas"},{icon:"star",name:"Favorita"}], genres:[{label:"Ficción",pct:90},{label:"Historia",pct:60},{label:"Romance",pct:50}] },
-        2: { bio:"Explorador de galaxias literarias. Moderador del club de Sci-Fi. Si no lo he leído es porque no existe todavía.", following:54, recentBooks:[1,5,0,11,8], badges:[{icon:"zap",name:"Sci-Fi Fan"},{icon:"trophy",name:"Top Lector"},{icon:"flame",name:"En racha"}], genres:[{label:"Ciencia Ficción",pct:95},{label:"Fantasía",pct:55},{label:"Misterio",pct:30}] },
-        3: { bio:"Escritora de reseñas en 'Libros entre sorbos de café'. Especialista en literatura fantástica y autores indie.", following:73, recentBooks:[2,6,4,7,9], badges:[{icon:"edit-3",name:"Blogger"},{icon:"star",name:"Favorita"},{icon:"globe",name:"Viajera Lit."}], genres:[{label:"Fantasía",pct:80},{label:"Romance",pct:65},{label:"Ficción",pct:55}] },
-        4: { bio:"Adicto al misterio y el thriller. Siempre buscando el próximo giro argumental. Detective literario amateur.", following:41, recentBooks:[7,9,1,5,3], badges:[{icon:"search",name:"Detective"},{icon:"book",name:"50 Libros"},{icon:"target",name:"Meta Alcanzada"}], genres:[{label:"Misterio",pct:88},{label:"Ciencia Ficción",pct:70},{label:"Historia",pct:40}] },
-        5: { bio:"Lectora récord de la comunidad. Leo en el metro, antes de dormir, y a veces en sueños.", following:112, recentBooks:[6,0,4,2,8], badges:[{icon:"crown",name:"Récord"},{icon:"trophy",name:"Top 3"},{icon:"message-circle",name:"67 Reseñas"},{icon:"zap",name:"Racha 30d"},{icon:"heart",name:"Inspiración"}], genres:[{label:"Romance",pct:75},{label:"Ficción",pct:70},{label:"No Ficción",pct:60}] },
-        6: { bio:"Ingeniero de día, lector incansable de noche. Fan de Tolkien, Sanderson y mundos con mapas.", following:38, recentBooks:[2,11,5,1,3], badges:[{icon:"map",name:"Cartógrafo"},{icon:"shield",name:"Fan Fantasía"},{icon:"book",name:"75 Libros"}], genres:[{label:"Fantasía",pct:92},{label:"Ciencia Ficción",pct:68},{label:"Historia",pct:35}] },
-    }
-};
+async function loadFromStrapi() {
+    const [libros, posts, usuarios, retos] = await Promise.all([
+        strapiGet('libros?pagination[limit]=100&sort=createdAt:asc'),
+        strapiGet('posts?filters[publicado][$eq]=true&populate=autor&sort=fecha_pub:desc&pagination[limit]=20'),
+        strapiGet('perfil-usuarios?pagination[limit]=50&sort=libros_leidos:desc'),
+        strapiGet('retos?filters[activo][$eq]=true&populate=participantes&pagination[limit]=10'),
+    ]);
+    if (libros.length)   API.books      = libros.map(normalizeBook);
+    if (posts.length)    API.blogPosts  = posts.map(normalizePost);
+    if (usuarios.length) API.users      = usuarios.map(normalizeUser);
+    if (retos.length)    API.challenges = retos.map(normalizeReto);
+    console.log('[BookGram] Strapi cargado:', { libros: API.books.length, posts: API.blogPosts.length, usuarios: API.users.length, retos: API.challenges.length });
+}
+
 
 
 /* ════════════════════════════════════════
@@ -1185,7 +1259,7 @@ Object.assign(window, {
 /* ════════════════════════════════════════
    INIT
    ════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     applyTheme(State.theme);
 
     // Check if profile exists
@@ -1201,6 +1275,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (navPh)  navPh.style.display = 'none';
         }
     }
+
+    // Cargar datos desde Strapi
+    await loadFromStrapi();
 
     // Render all sections
     renderTrendingBooks();
