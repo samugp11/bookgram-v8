@@ -167,6 +167,35 @@ const API = {
     ]
 };
 
+const PROFILE_DATA = {
+    currentUser: {
+        id: 0,
+        name: "",
+        username: "",
+        bio: "",
+        avatar: "",
+        level: "Nuevo lector",
+        levelClass: "badge--neutral",
+        booksRead: 0,
+        reviews: 0,
+        followers: 0,
+        following: 0,
+        booksThisYear: 0,
+        goalBooks: 24,
+        recentBooks: [],
+        badges: [],
+        genres: []
+    },
+    extended: {
+        1: { bio:"Amante de los clásicos y la literatura latinoamericana.", following:89, recentBooks:[0,6,9,3,1], badges:[{icon:"award",name:"Top 10"},{icon:"book-open",name:"120 Libros"},{icon:"message-square",name:"50 Reseñas"}], genres:[{label:"Ficción",pct:90},{label:"Historia",pct:60},{label:"Romance",pct:50}] },
+        2: { bio:"Explorador de galaxias literarias. Moderador del club de Sci-Fi.", following:54, recentBooks:[1,5,0,11,8], badges:[{icon:"zap",name:"Sci-Fi Fan"},{icon:"trophy",name:"Top Lector"},{icon:"flame",name:"En racha"}], genres:[{label:"Ciencia Ficción",pct:95},{label:"Fantasía",pct:55},{label:"Misterio",pct:30}] },
+        3: { bio:"Escritora de reseñas en 'Libros entre sorbos de café'.", following:73, recentBooks:[2,6,4,7,9], badges:[{icon:"edit-3",name:"Blogger"},{icon:"star",name:"Favorita"},{icon:"globe",name:"Viajera Lit."}], genres:[{label:"Fantasía",pct:80},{label:"Romance",pct:65},{label:"Ficción",pct:55}] },
+        4: { bio:"Adicto al misterio y el thriller. Detective literario amateur.", following:41, recentBooks:[7,9,1,5,3], badges:[{icon:"search",name:"Detective"},{icon:"book",name:"50 Libros"},{icon:"target",name:"Meta Alcanzada"}], genres:[{label:"Misterio",pct:88},{label:"Ciencia Ficción",pct:70},{label:"Historia",pct:40}] },
+        5: { bio:"Lectora récord de la comunidad. Leo en el metro, antes de dormir.", following:112, recentBooks:[6,0,4,2,8], badges:[{icon:"crown",name:"Récord"},{icon:"trophy",name:"Top 3"},{icon:"message-circle",name:"67 Reseñas"},{icon:"zap",name:"Racha 30d"},{icon:"heart",name:"Inspiración"}], genres:[{label:"Romance",pct:75},{label:"Ficción",pct:70},{label:"No Ficción",pct:60}] },
+        6: { bio:"Ingeniero de día, lector incansable de noche. Fan de Tolkien.", following:38, recentBooks:[2,11,5,1,3], badges:[{icon:"map",name:"Cartógrafo"},{icon:"shield",name:"Fan Fantasía"},{icon:"book",name:"75 Libros"}], genres:[{label:"Fantasía",pct:92},{label:"Ciencia Ficción",pct:68},{label:"Historia",pct:35}] },
+    }
+};
+
 async function loadFromStrapi() {
     // Mostrar estado loading
     showLoadingState();
