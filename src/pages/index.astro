@@ -168,17 +168,48 @@ const API = {
 };
 
 async function loadFromStrapi() {
-    const [libros, posts, usuarios, retos] = await Promise.all([
-        strapiGet('libros?pagination[limit]=100&sort=createdAt:asc'),
-        strapiGet('posts?filters[publicado][$eq]=true&populate=autor&sort=fecha_pub:desc&pagination[limit]=20'),
-        strapiGet('perfil-usuarios?pagination[limit]=50&sort=libros_leidos:desc'),
-        strapiGet('retos?filters[activo][$eq]=true&populate=participantes&pagination[limit]=10'),
-    ]);
-    if (libros.length)   API.books      = libros.map(normalizeBook);
-    if (posts.length)    API.blogPosts  = posts.map(normalizePost);
-    if (usuarios.length) API.users      = usuarios.map(normalizeUser);
-    if (retos.length)    API.challenges = retos.map(normalizeReto);
-    console.log('[BookGram] Strapi cargado:', { libros: API.books.length, posts: API.blogPosts.length, usuarios: API.users.length, retos: API.challenges.length });
+    // Mostrar estado loading
+    showLoadingState();
+    
+    try {
+        const [libros, posts, usuarios, retos] = await Promise.all([
+            strapiGet('libros?pagination[limit]=100&sort=createdAt:asc'),
+            strapiGet('posts?filters[publicado][$eq]=true&populate=autor&sort=fecha_pub:desc&pagination[limit]=20'),
+            strapiGet('perfil-usuarios?pagination[limit]=50&sort=libros_leidos:desc'),
+            strapiGet('retos?filters[activo][$eq]=true&populate=participantes&pagination[limit]=10'),
+        ]);
+        if (libros.length)   API.books      = libros.map(normalizeBook);
+        if (posts.length)    API.blogPosts  = posts.map(normalizePost);
+        if (usuarios.length) API.users      = usuarios.map(normalizeUser);
+        if (retos.length)    API.challenges = retos.map(normalizeReto);
+        console.log('[BookGram] Strapi cargado:', { libros: API.books.length, posts: API.blogPosts.length, usuarios: API.users.length, retos: API.challenges.length });
+        hideLoadingState();
+    } catch(e) {
+        console.error('[BookGram] Error cargando Strapi:', e);
+        showErrorState();
+    }
+}
+
+function showLoadingState() {
+    const grid = document.getElementById('catalogGrid');
+    if (grid) grid.innerHTML = `
+        <div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4rem;gap:1rem;">
+            <div class="loading-spinner"></div>
+            <p style="color:var(--ink-4);font-size:0.95rem">Cargando catálogo...</p>
+        </div>`;
+}
+
+function hideLoadingState() {
+    // Se limpia automáticamente al renderizar
+}
+
+function showErrorState() {
+    const grid = document.getElementById('catalogGrid');
+    if (grid) grid.innerHTML = `
+        <div style="grid-column:1/-1;text-align:center;padding:4rem;">
+            <p style="color:var(--error,#e53e3e);font-size:1rem;font-weight:600">No se pudo conectar con el servidor</p>
+            <p style="color:var(--ink-5);font-size:0.9rem;margin-top:0.5rem">Mostrando contenido en caché</p>
+        </div>`;
 }
 
 
@@ -432,16 +463,36 @@ function renderTrendingBooks() {
 /* ════════════════════════════════════════
    RENDER: CATALOG
    ════════════════════════════════════════ */
+let currentPage = 1;
+const BOOKS_PER_PAGE = 6;
+let currentFilteredBooks = [];
+
 function renderCatalog(books) {
+    currentFilteredBooks = books;
+    currentPage = 1;
+    renderCatalogPage();
+}
+
+function renderCatalogPage() {
     const grid = document.getElementById('catalogGrid');
     const count = document.getElementById('catalogResultCount');
     if (!grid) return;
-    if (count) count.textContent = `${books.length} libro${books.length !== 1 ? 's' : ''}`;
-    if (!books.length) {
+
+    const total = currentFilteredBooks.length;
+    const totalPages = Math.ceil(total / BOOKS_PER_PAGE);
+    const start = (currentPage - 1) * BOOKS_PER_PAGE;
+    const end = start + BOOKS_PER_PAGE;
+    const pageBooks = currentFilteredBooks.slice(start, end);
+
+    if (count) count.textContent = `${total} libro${total !== 1 ? 's' : ''}`;
+
+    if (!pageBooks.length) {
         grid.innerHTML = '<p class="catalog-empty">No se encontraron libros con ese criterio.</p>';
+        renderPagination(0, 0);
         return;
     }
-    grid.innerHTML = books.map(book => {
+
+    grid.innerHTML = pageBooks.map(book => {
         const status     = getBookStatus(book.id);
         const inLib      = !!status;
         const iconSvg    = STATUS_ICONS[status || 'none'];
@@ -463,6 +514,42 @@ function renderCatalog(books) {
             </div>
         </article>`;
     }).join('');
+
+    renderPagination(currentPage, totalPages);
+}
+
+function renderPagination(page, totalPages) {
+    let pag = document.getElementById('catalogPagination');
+    if (!pag) {
+        pag = document.createElement('div');
+        pag.id = 'catalogPagination';
+        document.getElementById('catalogGrid')?.after(pag);
+    }
+    if (totalPages <= 1) { pag.innerHTML = ''; return; }
+
+    let pages = '';
+    for (let i = 1; i <= totalPages; i++) {
+        pages += `<button class="pagination__btn ${i === page ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+    }
+
+    pag.innerHTML = `
+        <div class="pagination">
+            <button class="pagination__btn pagination__btn--nav" onclick="goToPage(${page - 1})" ${page === 1 ? 'disabled' : ''}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            ${pages}
+            <button class="pagination__btn pagination__btn--nav" onclick="goToPage(${page + 1})" ${page === totalPages ? 'disabled' : ''}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+        </div>`;
+}
+
+function goToPage(page) {
+    const totalPages = Math.ceil(currentFilteredBooks.length / BOOKS_PER_PAGE);
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    renderCatalogPage();
+    document.getElementById('catalogGrid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /* ════════════════════════════════════════
@@ -1254,8 +1341,8 @@ Object.assign(window, {
     handleNewsletter, handleContact, scrollToTop,
     // onboarding
     obNext, obBack, obSelectAvatar, obToggleGenre, obFinish,
+    goToPage,
 });
-
 /* ════════════════════════════════════════
    INIT
    ════════════════════════════════════════ */
