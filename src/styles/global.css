@@ -1921,3 +1921,16 @@ textarea.form-input { min-height: 130px; resize: vertical; }
     opacity: 0.4;
     cursor: not-allowed;
 }
+
+/* Validación formulario */
+.form-error {
+    display: block;
+    color: var(--error, #e53e3e);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+    min-height: 1rem;
+}
+
+.form-input--error {
+    border-color: var(--error, #e53e3e) !important;
+}

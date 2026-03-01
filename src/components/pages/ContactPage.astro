@@ -63,28 +63,32 @@
             </div>
           </div>
         </div>
-        <form class="contact-form" onsubmit="handleContact(event)">
-          <h2 class="contact-form__title">Envíanos un mensaje</h2>
-          <div class="contact-form__row">
-            <div class="form-group">
-              <label class="form-label">Nombre</label>
-              <input type="text" class="form-input" placeholder="Tu nombre" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Email</label>
-              <input type="email" class="form-input" placeholder="tu@email.com" required>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Asunto</label>
-            <input type="text" class="form-input" placeholder="¿En qué podemos ayudarte?">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mensaje</label>
-            <textarea class="form-textarea" rows="5" placeholder="Cuéntanos tu consulta..." required></textarea>
-          </div>
-          <button type="submit" class="btn btn--primary btn--lg" style="width:100%">Enviar mensaje</button>
-        </form>
+       <form class="contact-form" onsubmit="handleContact(event)" novalidate>
+  <h2 class="contact-form__title">Envíanos un mensaje</h2>
+  <div class="contact-form__row">
+    <div class="form-group">
+      <label class="form-label">Nombre</label>
+      <input type="text" id="contactName" class="form-input" placeholder="Tu nombre" required>
+      <span class="form-error" id="contactNameError"></span>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input type="email" id="contactEmail" class="form-input" placeholder="tu@email.com" required>
+      <span class="form-error" id="contactEmailError"></span>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Asunto</label>
+    <input type="text" id="contactSubject" class="form-input" placeholder="¿En qué podemos ayudarte?">
+    <span class="form-error" id="contactSubjectError"></span>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Mensaje</label>
+    <textarea id="contactMessage" class="form-textarea" rows="5" placeholder="Cuéntanos tu consulta..." required></textarea>
+    <span class="form-error" id="contactMessageError"></span>
+  </div>
+  <button type="submit" class="btn btn--primary btn--lg" style="width:100%">Enviar mensaje</button>
+</form>
       </div>
     </div>
   </div>
