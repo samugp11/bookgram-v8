@@ -401,6 +401,10 @@ function navigateTo(page) {
     if (page === 'library') { updateLibraryStats(); renderLibrary(currentLibraryTab); }
 }
 window.addEventListener('popstate', e => navigateTo(e.state?.page || 'home'));
+window.addEventListener('hashchange', () => {
+    const hash = window.location.hash.replace('#', '');
+    if (['home','catalog','library','blog','community','contact'].includes(hash)) navigateTo(hash);
+});
 
 /* ════════════════════════════════════════
    THEME
