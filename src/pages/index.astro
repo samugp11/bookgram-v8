@@ -559,10 +559,19 @@ function goToPage(page) {
 /* ════════════════════════════════════════
    RENDER: BLOG
    ════════════════════════════════════════ */
+function calcularTiempoLectura(texto) {
+    if (!texto) return null;
+    const palabras = texto.trim().split(/\s+/).length;
+    const minutos = Math.ceil(palabras / 200); // 200 palabras por minuto
+    return minutos + ' min';
+}
+
 function renderBlog() {
     const grid = document.getElementById('blogGrid');
     if (!grid) return;
-    grid.innerHTML = API.blogPosts.map(post => `
+    grid.innerHTML = API.blogPosts.map(post => {
+        const tiempoLectura = (post.content ? calcularTiempoLectura(post.content) : null) || post.readTime || '5 min';
+        return `
         <article class="blog-card" onclick="openBlogPost(${post.id})">
             <div class="blog-card__img"><img src="${post.img}" alt="${post.title}" loading="lazy" width="600" height="400"></div>
             <div class="blog-card__content">
@@ -574,10 +583,11 @@ function renderBlog() {
                         <div class="blog-card__author-avatar"><img src="${post.avatar}" alt="${post.author}" loading="lazy" width="32" height="32"></div>
                         <span class="blog-card__author-name">${post.author}</span>
                     </div>
-                    <span class="blog-card__read-time">${post.readTime} lectura</span>
+                    <span class="blog-card__read-time">${tiempoLectura} lectura</span>
                 </div>
             </div>
-        </article>`).join('');
+        </article>`;
+    }).join('');
 }
 
 /* ════════════════════════════════════════
@@ -909,11 +919,17 @@ function confirmRemove(bookId) {
    CATALOG FILTERS
    ════════════════════════════════════════ */
 function getFilteredBooks() {
-    const search = document.getElementById('catalogSearch')?.value?.toLowerCase() || '';
+    const searchVal = document.getElementById('catalogSearch')?.value?.trim() || '';
     const genre  = document.getElementById('catalogGenre')?.value || '';
     const sort   = document.getElementById('catalogSort')?.value || 'popular';
     let filtered = [...API.books];
-    if (search) filtered = filtered.filter(b => b.title.toLowerCase().includes(search) || b.author.toLowerCase().includes(search));
+    if (searchVal) {
+        // Filtro con expresión regular
+        let regex;
+        try { regex = new RegExp(searchVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
+        catch { regex = new RegExp('', 'i'); }
+        filtered = filtered.filter(b => regex.test(b.title) || regex.test(b.author) || regex.test(b.genre));
+    }
     if (genre)  filtered = filtered.filter(b => b.genre === genre);
     switch (sort) {
         case 'rating': filtered.sort((a,b) => b.rating - a.rating); break;
@@ -1238,11 +1254,15 @@ function toggleSearch() {
 }
 function closeSearchOnBackdrop(e) { if (e.target === e.currentTarget) toggleSearch(); }
 function handleSearch() {
-    const query   = document.getElementById('searchInput')?.value.toLowerCase().trim() || '';
+    const query   = document.getElementById('searchInput')?.value.trim() || '';
     const results = document.getElementById('searchResults');
     if (!results) return;
     if (!query) { results.innerHTML = '<p class="search-hint">Escribe para buscar libros...</p>'; return; }
-    const filtered = API.books.filter(b => b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query));
+    // Búsqueda con expresión regular — escapa caracteres especiales y busca en título y autor
+    let regex;
+    try { regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
+    catch { regex = new RegExp('', 'i'); }
+    const filtered = API.books.filter(b => regex.test(b.title) || regex.test(b.author));
     if (!filtered.length) { results.innerHTML = '<p class="search-hint">Sin resultados para "' + query + '"</p>'; return; }
     results.innerHTML = filtered.map(book => `
         <div class="search-result-item" onclick="toggleSearch();navigateTo('catalog');openBookModal(${book.id})">
