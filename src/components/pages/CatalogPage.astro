@@ -10,8 +10,8 @@
   <div class="section">
     <div class="container">
       <div class="catalog-filters">
-        <div class="catalog-filters__search">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <div class="catalog-filters__search relative flex items-center">
+          <svg class="absolute left-3 pointer-events-none" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <input type="text" placeholder="Buscar por título o autor..." id="catalogSearch" oninput="filterCatalog()" aria-label="Buscar en catálogo">
         </div>
         <select class="catalog-filters__select" id="catalogGenre" onchange="filterCatalog()">
@@ -32,7 +32,7 @@
           <option value="title">Título A–Z</option>
         </select>
       </div>
-      <div class="genre-tags" id="genreTags">
+      <div class="genre-tags flex flex-wrap gap-2" id="genreTags">
         <button class="genre-tag active" onclick="selectGenre(this,'')">Todos</button>
         <button class="genre-tag" onclick="selectGenre(this,'ficcion')">Ficción</button>
         <button class="genre-tag" onclick="selectGenre(this,'fantasia')">Fantasía</button>

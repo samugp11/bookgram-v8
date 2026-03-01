@@ -63,7 +63,7 @@
             </div>
           </div>
         </div>
-       <form class="contact-form" onsubmit="handleContact(event)" novalidate>
+       <form class="contact-form space-y-4" onsubmit="handleContact(event)" novalidate>
   <h2 class="contact-form__title">Envíanos un mensaje</h2>
   <div class="contact-form__row">
     <div class="form-group">
@@ -87,7 +87,11 @@
     <textarea id="contactMessage" class="form-textarea" rows="5" placeholder="Cuéntanos tu consulta..." required></textarea>
     <span class="form-error" id="contactMessageError"></span>
   </div>
-  <button type="submit" class="btn btn--primary btn--lg" style="width:100%">Enviar mensaje</button>
+  <button type="submit" class="btn btn--primary btn--lg w-full flex items-center justify-center gap-2">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    Enviar mensaje
+</button>
+  
 </form>
       </div>
     </div>
